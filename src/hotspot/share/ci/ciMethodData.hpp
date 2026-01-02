@@ -46,6 +46,7 @@ class ciCallTypeData;
 class ciVirtualCallTypeData;
 class ciParametersTypeData;
 class ciSpeculativeTrapData;
+class ciCallData;
 
 typedef ProfileData ciProfileData;
 
@@ -139,6 +140,11 @@ public:
 #ifndef PRODUCT
   void print_data_on(outputStream* st) const;
 #endif
+};
+
+class ciCallData : public CallData {
+public:
+  ciCallData(DataLayout* layout) : CallData(layout) {}
 };
 
 class ciCallTypeData : public CallTypeData {
@@ -370,7 +376,6 @@ public:
 class ciMethodData : public ciMetadata {
   CI_PACKAGE_ACCESS
   friend class ciReplay;
-
 private:
   // Size in bytes
   int _data_size;
@@ -406,9 +411,9 @@ private:
 
   // Coherent snapshot of original header.
   MethodData::CompilerCounters _orig;
-
+protected:
   ciMethodData(MethodData* md = nullptr);
-
+private:
   // Accessors
   int data_size() const { return _data_size; }
   int extra_data_size() const { return _extra_data_size; }
