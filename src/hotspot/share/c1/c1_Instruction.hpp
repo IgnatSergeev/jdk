@@ -29,6 +29,7 @@
 #include "c1/c1_LIR.hpp"
 #include "c1/c1_ValueType.hpp"
 #include "ci/ciField.hpp"
+#include "ci/ciMethodData.hpp"
 
 // Predefined classes
 class ciField;
@@ -955,6 +956,7 @@ LEAF(StoreIndexed, AccessIndexed)
   Value       _value;
 
   ciMethod* _profiled_method;
+  ciMethodData*   _md;
   int       _profiled_bci;
   bool      _check_boolean;
 
@@ -963,7 +965,7 @@ LEAF(StoreIndexed, AccessIndexed)
   StoreIndexed(Value array, Value index, Value length, BasicType elt_type, Value value, ValueStack* state_before,
                bool check_boolean, bool mismatched = false)
   : AccessIndexed(array, index, length, elt_type, state_before, mismatched)
-  , _value(value), _profiled_method(nullptr), _profiled_bci(0), _check_boolean(check_boolean)
+  , _value(value), _profiled_method(nullptr), _md(nullptr), _profiled_bci(0), _check_boolean(check_boolean)
   {
     ASSERT_VALUES
     pin();
@@ -975,9 +977,11 @@ LEAF(StoreIndexed, AccessIndexed)
   // Helpers for MethodData* profiling
   void set_should_profile(bool value)                { set_flag(ProfileMDOFlag, value); }
   void set_profiled_method(ciMethod* method)         { _profiled_method = method;   }
+  void set_md(ciMethodData* md)         { _md = md;   }
   void set_profiled_bci(int bci)                     { _profiled_bci = bci;         }
   bool      should_profile() const                   { return check_flag(ProfileMDOFlag); }
   ciMethod* profiled_method() const                  { return _profiled_method;     }
+  ciMethodData* md() const                  { return _md;     }
   int       profiled_bci() const                     { return _profiled_bci;        }
   // generic
   virtual void input_values_do(ValueVisitor* f)   { AccessIndexed::input_values_do(f); f->visit(&_value); }
@@ -1382,13 +1386,14 @@ BASE(TypeCheck, StateSplit)
   Value       _obj;
 
   ciMethod* _profiled_method;
+  ciMethodData* _md;
   int       _profiled_bci;
 
  public:
   // creation
   TypeCheck(ciKlass* klass, Value obj, ValueType* type, ValueStack* state_before)
   : StateSplit(type, state_before), _klass(klass), _obj(obj),
-    _profiled_method(nullptr), _profiled_bci(0) {
+    _profiled_method(nullptr), _md(nullptr), _profiled_bci(0) {
     ASSERT_VALUES
     set_direct_compare(false);
   }
@@ -1409,9 +1414,11 @@ BASE(TypeCheck, StateSplit)
   // Helpers for MethodData* profiling
   void set_should_profile(bool value)                { set_flag(ProfileMDOFlag, value); }
   void set_profiled_method(ciMethod* method)         { _profiled_method = method;   }
+  void set_md(ciMethodData* md)         { _md = md;   }
   void set_profiled_bci(int bci)                     { _profiled_bci = bci;         }
   bool      should_profile() const                   { return check_flag(ProfileMDOFlag); }
   ciMethod* profiled_method() const                  { return _profiled_method;     }
+  ciMethodData* md()         { return _md;   }
   int       profiled_bci() const                     { return _profiled_bci;        }
 };
 
@@ -1829,6 +1836,7 @@ LEAF(Goto, BlockEnd)
   };
  private:
   ciMethod*   _profiled_method;
+  ciMethodData*   _md;
   int         _profiled_bci;
   Direction   _direction;
  public:
@@ -1836,6 +1844,7 @@ LEAF(Goto, BlockEnd)
   Goto(BlockBegin* sux, ValueStack* state_before, bool is_safepoint = false)
     : BlockEnd(illegalType, state_before, is_safepoint)
     , _profiled_method(nullptr)
+    , _md(nullptr)
     , _profiled_bci(0)
     , _direction(none) {
     BlockList* s = new BlockList(1);
@@ -1845,6 +1854,7 @@ LEAF(Goto, BlockEnd)
 
   Goto(BlockBegin* sux, bool is_safepoint) : BlockEnd(illegalType, nullptr, is_safepoint)
                                            , _profiled_method(nullptr)
+    , _md(nullptr)
                                            , _profiled_bci(0)
                                            , _direction(none) {
     BlockList* s = new BlockList(1);
@@ -1854,11 +1864,13 @@ LEAF(Goto, BlockEnd)
 
   bool should_profile() const                    { return check_flag(ProfileMDOFlag); }
   ciMethod* profiled_method() const              { return _profiled_method; } // set only for profiled branches
+  ciMethodData* md() const              { return _md; } // set only for profiled branches
   int profiled_bci() const                       { return _profiled_bci; }
   Direction direction() const                    { return _direction; }
 
   void set_should_profile(bool value)            { set_flag(ProfileMDOFlag, value); }
   void set_profiled_method(ciMethod* method)     { _profiled_method = method; }
+  void set_md(ciMethodData* md)     { _md = md; }
   void set_profiled_bci(int bci)                 { _profiled_bci = bci; }
   void set_direction(Direction d)                { _direction = d; }
 };
@@ -1938,6 +1950,7 @@ LEAF(If, BlockEnd)
   Condition   _cond;
   Value       _y;
   ciMethod*   _profiled_method;
+  ciMethodData*   _md;
   int         _profiled_bci; // Canonicalizer may alter bci of If node
   bool        _swapped;      // Is the order reversed with respect to the original If in the
                              // bytecode stream?
@@ -1950,6 +1963,7 @@ LEAF(If, BlockEnd)
   , _cond(cond)
   , _y(y)
   , _profiled_method(nullptr)
+  , _md(nullptr)
   , _profiled_bci(0)
   , _swapped(false)
   {
@@ -1973,6 +1987,7 @@ LEAF(If, BlockEnd)
   BlockBegin* usux() const                       { return sux_for(unordered_is_true()); }
   bool should_profile() const                    { return check_flag(ProfileMDOFlag); }
   ciMethod* profiled_method() const              { return _profiled_method; } // set only for profiled branches
+  ciMethodData* md() const              { return _md; } // set only for profiled branches
   int profiled_bci() const                       { return _profiled_bci; }    // set for profiled branches and tiered
   bool is_swapped() const                        { return _swapped; }
 
@@ -1984,6 +1999,7 @@ LEAF(If, BlockEnd)
 
   void set_should_profile(bool value)             { set_flag(ProfileMDOFlag, value); }
   void set_profiled_method(ciMethod* method)      { _profiled_method = method; }
+  void set_md(ciMethodData* md)      { _md = md; }
   void set_profiled_bci(int bci)                  { _profiled_bci = bci;       }
   void set_swapped(bool value)                    { _swapped = value;         }
   // generic
@@ -2018,34 +2034,40 @@ BASE(Switch, BlockEnd)
 LEAF(TableSwitch, Switch)
  private:
   int _lo_key;
+  ciMethodData* _md;
 
  public:
   // creation
   TableSwitch(Value tag, BlockList* sux, int lo_key, ValueStack* state_before, bool is_safepoint)
     : Switch(tag, sux, state_before, is_safepoint)
-  , _lo_key(lo_key) { assert(_lo_key <= hi_key(), "integer overflow"); }
+  , _lo_key(lo_key), _md(nullptr) { assert(_lo_key <= hi_key(), "integer overflow"); }
 
   // accessors
   int lo_key() const                             { return _lo_key; }
+  void set_md(ciMethodData* md)                              { _md = md; }
   int hi_key() const                             { return _lo_key + (length() - 1); }
+  ciMethodData* md() const                             { return _md; }
 };
 
 
 LEAF(LookupSwitch, Switch)
  private:
   intArray* _keys;
+  ciMethodData* _md;
 
  public:
   // creation
   LookupSwitch(Value tag, BlockList* sux, intArray* keys, ValueStack* state_before, bool is_safepoint)
   : Switch(tag, sux, state_before, is_safepoint)
-  , _keys(keys) {
+  , _keys(keys), _md(nullptr) {
     assert(keys != nullptr, "keys must exist");
     assert(keys->length() == length(), "sux & keys have incompatible lengths");
   }
 
   // accessors
   int key_at(int i) const                        { return _keys->at(i); }
+  void set_md(ciMethodData* md)                              { _md = md; }
+  ciMethodData* md() const                             { return _md; }
 };
 
 
@@ -2231,6 +2253,8 @@ LEAF(UnsafeGetAndSet, UnsafeOp)
 LEAF(ProfileCall, Instruction)
  private:
   ciMethod*        _method;
+  ciMethodData*    _md;
+  ciMethodData*    _callee_md;
   int              _bci_of_invoke;
   ciMethod*        _callee;         // the method that is called at the given bci
   Value            _recv;
@@ -2240,9 +2264,11 @@ LEAF(ProfileCall, Instruction)
   bool             _inlined;        // Are we profiling a call that is inlined
 
  public:
-  ProfileCall(ciMethod* method, int bci, ciMethod* callee, Value recv, ciKlass* known_holder, Values* obj_args, bool inlined)
+  ProfileCall(ciMethod* method, int bci, ciMethodData* md, ciMethod* callee, ciMethodData* callee_md, Value recv, ciKlass* known_holder, Values* obj_args, bool inlined)
     : Instruction(voidType)
     , _method(method)
+    , _md(md)
+    , _callee_md(callee_md)
     , _bci_of_invoke(bci)
     , _callee(callee)
     , _recv(recv)
@@ -2257,6 +2283,8 @@ LEAF(ProfileCall, Instruction)
   ciMethod* method()             const { return _method; }
   int bci_of_invoke()            const { return _bci_of_invoke; }
   ciMethod* callee()             const { return _callee; }
+  ciMethodData* md()             const { return _md; }
+  ciMethodData* callee_md()      const { return _callee_md; }
   Value recv()                   const { return _recv; }
   ciKlass* known_holder()        const { return _known_holder; }
   int nb_profiled_args()         const { return _obj_args == nullptr ? 0 : _obj_args->length(); }
@@ -2283,14 +2311,16 @@ LEAF(ProfileCall, Instruction)
 LEAF(ProfileReturnType, Instruction)
  private:
   ciMethod*        _method;
+  ciMethodData*        _md;
   ciMethod*        _callee;
   int              _bci_of_invoke;
   Value            _ret;
 
  public:
-  ProfileReturnType(ciMethod* method, int bci, ciMethod* callee, Value ret)
+  ProfileReturnType(ciMethod* method, ciMethodData* md, int bci, ciMethod* callee, Value ret)
     : Instruction(voidType)
     , _method(method)
+    , _md(md)
     , _callee(callee)
     , _bci_of_invoke(bci)
     , _ret(ret)
@@ -2301,6 +2331,7 @@ LEAF(ProfileReturnType, Instruction)
   }
 
   ciMethod* method()             const { return _method; }
+  ciMethodData* md()             const { return _md; }
   ciMethod* callee()             const { return _callee; }
   int bci_of_invoke()            const { return _bci_of_invoke; }
   Value ret()                    const { return _ret; }

@@ -103,7 +103,6 @@ class GraphBuilder {
 
     // When inlining do not push the result on the stack
     bool         _ignore_return;
-
    public:
     ScopeData(ScopeData* parent);
 
@@ -192,6 +191,7 @@ class GraphBuilder {
   Instruction*      _last;                       // the last instruction added
   bool              _skip_block;                 // skip processing of the rest of this block
 
+  stringStream* _inline_log = nullptr;         // the inline log stream
   // accessors
   ScopeData*        scope_data() const           { return _scope_data; }
   Compilation*      compilation() const          { return _compilation; }
@@ -204,6 +204,7 @@ class GraphBuilder {
   void              set_state(ValueStack* state) { _state = state; }
   IRScope*          scope() const                { return scope_data()->scope(); }
   ciMethod*         method() const               { return scope()->method(); }
+  ciMethodData*     method_data() const          { return scope()->method_data(); }
   ciBytecodeStream* stream() const               { return scope_data()->stream(); }
   Instruction*      last() const                 { return _last; }
   Bytecodes::Code   code() const                 { return stream()->cur_bc(); }
@@ -368,7 +369,7 @@ class GraphBuilder {
   void clear_inline_bailout();
   ValueStack* state_at_entry();
   void push_root_scope(IRScope* scope, BlockList* bci2block, BlockBegin* start);
-  void push_scope(ciMethod* callee, BlockBegin* continuation);
+  void push_scope(ciMethod* callee, ciMethodData* method_data, BlockBegin* continuation);
   void push_scope_for_jsr(BlockBegin* jsr_continuation, int jsr_dest_bci);
   void pop_scope();
   void pop_scope_for_jsr();
@@ -382,8 +383,8 @@ class GraphBuilder {
 
   void print_inlining(ciMethod* callee, const char* msg, bool success = true);
 
-  void profile_call(ciMethod* callee, Value recv, ciKlass* predicted_holder, Values* obj_args, bool inlined);
-  void profile_return_type(Value ret, ciMethod* callee, ciMethod* m = nullptr, int bci = -1);
+  void profile_call(ciMethod* callee, ciMethodData* callee_method_data, Value recv, ciKlass* predicted_holder, Values* obj_args, bool inlined);
+  void profile_return_type(Value ret, ciMethod* callee, ciMethod* m = nullptr, ciMethodData* md = nullptr, int bci = -1);
   void profile_invocation(ciMethod* inlinee, ValueStack* state);
 
   // Shortcuts to profiling control.

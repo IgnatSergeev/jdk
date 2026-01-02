@@ -139,6 +139,7 @@ class IRScope: public CompilationResourceObj {
   IRScope*      _caller;                         // the caller scope, or null
   int           _level;                          // the inlining level
   ciMethod*     _method;                         // the corresponding method
+  ciMethodData* _method_data;                    // the corresponding MethodData
   IRScopeList   _callees;                        // the inlined method scopes
 
   // graph
@@ -155,16 +156,16 @@ class IRScope: public CompilationResourceObj {
 
   // helper functions
   BlockBegin* build_graph(Compilation* compilation, int osr_bci);
-
  public:
   // creation
-  IRScope(Compilation* compilation, IRScope* caller, int caller_bci, ciMethod* method, int osr_bci, bool create_graph = false);
+  IRScope(Compilation* compilation, IRScope* caller, int caller_bci, ciMethod* method, ciMethodData* method_data, int osr_bci, bool create_graph = false);
 
   // accessors
   Compilation*  compilation() const              { return _compilation; }
   IRScope*      caller() const                   { return _caller; }
   int           level() const                    { return _level; }
   ciMethod*     method() const                   { return _method; }
+  ciMethodData* method_data() const              { return _method_data; }
   int           max_stack() const;               // NOTE: expensive
   BitMap&       requires_phi_function()          { return _requires_phi_function; }
 
