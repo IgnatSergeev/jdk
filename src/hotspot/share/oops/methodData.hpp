@@ -127,7 +127,8 @@ public:
     call_type_data_tag,
     virtual_call_type_data_tag,
     parameters_type_data_tag,
-    speculative_trap_data_tag
+    speculative_trap_data_tag,
+    call_data_tag
   };
 
   enum {
@@ -284,11 +285,12 @@ public:
 class ProfileData;
 class   BitData;
 class     CounterData;
-class       ReceiverTypeData;
-class         VirtualCallData;
-class           VirtualCallTypeData;
+class       CallData;
+class         ReceiverTypeData;
+class           VirtualCallData;
+class             VirtualCallTypeData;
+class         CallTypeData;
 class       RetData;
-class       CallTypeData;
 class   JumpData;
 class     BranchData;
 class   ArrayData;
@@ -422,6 +424,7 @@ public:
   virtual bool is_VirtualCallTypeData()const { return false; }
   virtual bool is_ParametersTypeData() const { return false; }
   virtual bool is_SpeculativeTrapData()const { return false; }
+  virtual bool is_CallData()        const { return false; }
 
 
   BitData* as_BitData() const {
@@ -479,6 +482,10 @@ public:
   SpeculativeTrapData* as_SpeculativeTrapData() const {
     assert(is_SpeculativeTrapData(), "wrong type");
     return is_SpeculativeTrapData() ? (SpeculativeTrapData*)this : nullptr;
+  }
+  CallData* as_CallData() const {
+    assert(is_CallData(), "wrong type");
+    return is_CallData() ? (CallData*)this : nullptr;
   }
 
 
@@ -998,12 +1005,60 @@ public:
 
 };
 
+class CallData : public CounterData {
+  friend class VMStructs;
+  friend class JVMCIVMStructs;
+protected:
+  enum {
+    specialized_data_off_set = counter_cell_count,
+    call_cell_count,
+  };
+
+public:
+  CallData(DataLayout* layout) : CounterData(layout) {
+    assert(layout->tag() == DataLayout::call_data_tag ||
+           layout->tag() == DataLayout::call_type_data_tag ||
+           layout->tag() == DataLayout::receiver_type_data_tag ||
+           layout->tag() == DataLayout::virtual_call_data_tag ||
+           layout->tag() == DataLayout::virtual_call_type_data_tag, "wrong type");
+  }
+
+  virtual bool is_CallData() const { return true; }
+
+  static int static_cell_count() {
+    return call_cell_count;
+  }
+
+  virtual int cell_count() const {
+    return static_cell_count();
+  }
+
+  void set_specialized_data(MethodData* md) {
+    assert(specialized_data() == nullptr, "specialized data overwrite");
+    set_intptr_at(specialized_data_off_set, reinterpret_cast<intptr_t>(md));
+  }
+  MethodData* specialized_data() const {
+    return (MethodData*)intptr_at(specialized_data_off_set);
+  }
+
+  static ByteSize specialized_data_offset() {
+    return cell_offset(specialized_data_off_set);
+  }
+  static ByteSize call_data_size() {
+    return cell_offset(call_cell_count);
+  }
+
+  virtual void metaspace_pointers_do(MetaspaceClosure* it);
+
+  virtual void print_data_on(outputStream* st, const char* extra = nullptr) const;
+};
+
 // CallTypeData
 //
 // A CallTypeData is used to access profiling information about a non
 // virtual call for which we collect type information about arguments
 // and return value.
-class CallTypeData : public CounterData {
+class CallTypeData : public CallData {
 private:
   // entries for arguments if any
   TypeStackSlotEntries _args;
@@ -1011,7 +1066,7 @@ private:
   ReturnTypeEntry _ret;
 
   int cell_count_global_offset() const {
-    return CounterData::static_cell_count() + TypeEntriesAtCall::cell_count_local_offset();
+    return CallData::static_cell_count() + TypeEntriesAtCall::cell_count_local_offset();
   }
 
   // number of cells not counting the header
@@ -1025,8 +1080,8 @@ private:
 
 public:
   CallTypeData(DataLayout* layout) :
-    CounterData(layout),
-    _args(CounterData::static_cell_count()+TypeEntriesAtCall::header_cell_count(), number_of_arguments()),
+    CallData(layout),
+    _args(CallData::static_cell_count() + TypeEntriesAtCall::header_cell_count(), number_of_arguments()),
     _ret(cell_count() - ReturnTypeEntry::static_cell_count())
   {
     assert(layout->tag() == DataLayout::call_type_data_tag, "wrong type");
@@ -1052,17 +1107,17 @@ public:
   }
 
   static int compute_cell_count(BytecodeStream* stream) {
-    return CounterData::static_cell_count() + TypeEntriesAtCall::compute_cell_count(stream);
+    return CallData::static_cell_count() + TypeEntriesAtCall::compute_cell_count(stream);
   }
 
   static void initialize(DataLayout* dl, int cell_count) {
-    TypeEntriesAtCall::initialize(dl, CounterData::static_cell_count(), cell_count);
+    TypeEntriesAtCall::initialize(dl, CallData::static_cell_count(), cell_count);
   }
 
   virtual void post_initialize(BytecodeStream* stream, MethodData* mdo);
 
   virtual int cell_count() const {
-    return CounterData::static_cell_count() +
+    return CallData::static_cell_count() +
       TypeEntriesAtCall::header_cell_count() +
       int_at_unchecked(cell_count_global_offset());
   }
@@ -1105,7 +1160,7 @@ public:
 
   // Code generation support
   static ByteSize args_data_offset() {
-    return cell_offset(CounterData::static_cell_count()) + TypeEntriesAtCall::args_data_offset();
+    return cell_offset(CallData::static_cell_count()) + TypeEntriesAtCall::args_data_offset();
   }
 
   ByteSize argument_type_offset(int i) {
@@ -1148,18 +1203,18 @@ public:
 // is seen. A per ReceiverTypeData counter is incremented on type
 // overflow (when there's no more room for a not yet profiled Klass*).
 //
-class ReceiverTypeData : public CounterData {
+class ReceiverTypeData : public CallData {
   friend class VMStructs;
   friend class JVMCIVMStructs;
 protected:
   enum {
-    receiver0_offset = counter_cell_count,
+    receiver0_offset = call_cell_count,
     count0_offset,
     receiver_type_row_cell_count = (count0_offset + 1) - receiver0_offset
   };
 
 public:
-  ReceiverTypeData(DataLayout* layout) : CounterData(layout) {
+  ReceiverTypeData(DataLayout* layout) : CallData(layout) {
     assert(layout->tag() == DataLayout::receiver_type_data_tag ||
            layout->tag() == DataLayout::virtual_call_data_tag ||
            layout->tag() == DataLayout::virtual_call_type_data_tag, "wrong type");
@@ -1168,7 +1223,7 @@ public:
   virtual bool is_ReceiverTypeData() const { return true; }
 
   static int static_cell_count() {
-    return counter_cell_count + (uint) TypeProfileWidth * receiver_type_row_cell_count;
+    return call_cell_count + (uint)TypeProfileWidth * receiver_type_row_cell_count;
   }
 
   virtual int cell_count() const {
@@ -2147,6 +2202,8 @@ private:
   // data index of exception handler profiling data
   int _exception_handler_data_di;
 
+  bool _is_specialized;
+
   // Beginning of the data entries
   // See comment in ciMethodData::load_data
   intptr_t _data[1];
@@ -2269,6 +2326,7 @@ public:
   // My size
   int size_in_bytes() const { return _size; }
   int size() const    { return align_metadata_size(align_up(_size, BytesPerWord)/BytesPerWord); }
+  int specialized_size_in_bytes() const;
 
   int invocation_count() {
     if (invocation_counter()->carry()) {
@@ -2559,6 +2617,11 @@ public:
   void clean_weak_method_links();
   Mutex* extra_data_lock();
   void check_extra_data_locked() const NOT_DEBUG_RETURN;
+
+  bool is_specialized() const { return _is_specialized; }
+  void mark_as_specialized() { _is_specialized = true; }
+
+  void clean_specialized_datas(ClassLoaderData* loader_data);
 };
 
 #endif // SHARE_OOPS_METHODDATA_HPP
