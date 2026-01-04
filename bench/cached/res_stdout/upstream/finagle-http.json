@@ -1,0 +1,47 @@
+{
+    "version": "upstream",
+    "bench": "finagle-http",
+    "total_mdo_size": 4723288,
+    "total_special_mdo_size": 0,
+    "total_special_mdos": 0,
+    "total_bytecodes": 205972,
+    "total_invokes": 32931,
+    "time_median_ns": 3378130594,
+    "time_95_percentile_ns": 6080634109,
+    "time_99_percentile_ns": 7825768149,
+    "memory_tracking": {
+        "Java Heap": 8589934592,
+        "Class": 10041060,
+        "Thread": 2325216,
+        "Code": 30258256,
+        "GC": 241318303,
+        "GCCardSet": 33000,
+        "Compiler": 627527,
+        "Internal": 775763,
+        "Other": 26803624,
+        "Symbol": 8504470,
+        "Native Memory Tracking": 3691148,
+        "Arena Chunk": 11386912,
+        "Tracing": 19537,
+        "Statistics": 128,
+        "Arguments": 90,
+        "Module": 62152,
+        "Safepoint": 8192,
+        "Synchronization": 1256664,
+        "Serviceability": 17632,
+        "Metaspace": 47207592,
+        "String Deduplication": 680,
+        "Object Monitors": 480384,
+        "JNI": 8816
+    },
+    "invokes": {
+        "inv_wo_data": 0,
+        "inv_w_data": 0,
+        "inv_count_0_wo_data": 0,
+        "inv_count_0_w_data": 0
+    },
+    "invokes_mdo_sizes": {
+        "inv_count_0_w_data": 0,
+        "inv_w_data": 0
+    }
+}

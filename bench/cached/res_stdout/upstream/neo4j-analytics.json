@@ -1,0 +1,46 @@
+{
+    "version": "upstream",
+    "bench": "neo4j-analytics",
+    "total_mdo_size": 9561360,
+    "total_special_mdo_size": 0,
+    "total_special_mdos": 0,
+    "total_bytecodes": 421194,
+    "total_invokes": 70637,
+    "time_median_ns": 1231204186,
+    "time_95_percentile_ns": 1428193108,
+    "time_99_percentile_ns": 2998422988,
+    "memory_tracking": {
+        "Java Heap": 8589934592,
+        "Class": 19504092,
+        "Thread": 1260344,
+        "Code": 53627816,
+        "GC": 241600015,
+        "GCCardSet": 35856,
+        "Compiler": 266234,
+        "Internal": 862834,
+        "Symbol": 25008625,
+        "Native Memory Tracking": 7857674,
+        "Arena Chunk": 5950424,
+        "Tracing": 8785,
+        "Statistics": 128,
+        "Arguments": 90,
+        "Module": 151992,
+        "Safepoint": 8192,
+        "Synchronization": 2165672,
+        "Serviceability": 17306,
+        "Metaspace": 102588632,
+        "String Deduplication": 680,
+        "Object Monitors": 555552,
+        "JNI": 10016
+    },
+    "invokes": {
+        "inv_wo_data": 0,
+        "inv_w_data": 0,
+        "inv_count_0_wo_data": 0,
+        "inv_count_0_w_data": 0
+    },
+    "invokes_mdo_sizes": {
+        "inv_count_0_w_data": 0,
+        "inv_w_data": 0
+    }
+}

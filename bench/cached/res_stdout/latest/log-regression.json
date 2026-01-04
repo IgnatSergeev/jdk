@@ -1,0 +1,47 @@
+{
+    "version": "latest",
+    "bench": "log-regression",
+    "total_mdo_size": 38043520,
+    "total_special_mdo_size": 25575672,
+    "total_special_mdos": 0,
+    "total_bytecodes": 497693,
+    "total_invokes": 88105,
+    "time_median_ns": 787754867,
+    "time_95_percentile_ns": 1222752063,
+    "time_99_percentile_ns": 4970677641,
+    "memory_tracking": {
+        "Java Heap": 8589934592,
+        "Class": 23930098,
+        "Thread": 4824448,
+        "Code": 58966532,
+        "GC": 242480975,
+        "GCCardSet": 59776,
+        "Compiler": 233730,
+        "Internal": 2466047,
+        "Other": 417800,
+        "Symbol": 33434804,
+        "Native Memory Tracking": 12768344,
+        "Arena Chunk": 27611312,
+        "Tracing": 22353,
+        "Statistics": 128,
+        "Arguments": 90,
+        "Module": 101696,
+        "Safepoint": 8192,
+        "Synchronization": 10187616,
+        "Serviceability": 17526,
+        "Metaspace": 175679752,
+        "String Deduplication": 680,
+        "Object Monitors": 1306368,
+        "JNI": 9248
+    },
+    "invokes": {
+        "inv_wo_data": 55459,
+        "inv_w_data": 0,
+        "inv_count_0_wo_data": 112055,
+        "inv_count_0_w_data": 0
+    },
+    "invokes_mdo_sizes": {
+        "inv_count_0_w_data": 0,
+        "inv_w_data": 0
+    }
+}

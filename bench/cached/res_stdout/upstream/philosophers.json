@@ -1,0 +1,46 @@
+{
+    "version": "upstream",
+    "bench": "philosophers",
+    "total_mdo_size": 1334264,
+    "total_special_mdo_size": 0,
+    "total_special_mdos": 0,
+    "total_bytecodes": 65728,
+    "total_invokes": 9224,
+    "time_median_ns": 2541447266,
+    "time_95_percentile_ns": 2957822896,
+    "time_99_percentile_ns": 3458076948,
+    "memory_tracking": {
+        "Java Heap": 8589934592,
+        "Class": 2408564,
+        "Thread": 760088,
+        "Code": 10225396,
+        "GC": 240979471,
+        "GCCardSet": 33000,
+        "Compiler": 236218,
+        "Internal": 385344,
+        "Symbol": 2676692,
+        "Native Memory Tracking": 10972802,
+        "Arena Chunk": 2355608,
+        "Tracing": 6993,
+        "Statistics": 128,
+        "Arguments": 90,
+        "Module": 46720,
+        "Safepoint": 8192,
+        "Synchronization": 5959480,
+        "Serviceability": 17224,
+        "Metaspace": 12700608,
+        "String Deduplication": 680,
+        "Object Monitors": 116570232,
+        "JNI": 8552
+    },
+    "invokes": {
+        "inv_wo_data": 0,
+        "inv_w_data": 0,
+        "inv_count_0_wo_data": 0,
+        "inv_count_0_w_data": 0
+    },
+    "invokes_mdo_sizes": {
+        "inv_count_0_w_data": 0,
+        "inv_w_data": 0
+    }
+}
