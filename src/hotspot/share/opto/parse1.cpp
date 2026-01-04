@@ -399,12 +399,13 @@ void Parse::load_interpreter_state(Node* osr_buf) {
 
 //------------------------------Parse------------------------------------------
 // Main parser constructor.
-Parse::Parse(JVMState* caller, ciMethod* parse_method, float expected_uses)
+Parse::Parse(JVMState* caller, ciMethod* parse_method, ciMethodData* parse_md, float expected_uses)
   : _exits(caller)
 {
   // Init some variables
   _caller = caller;
   _method = parse_method;
+  _method_data = parse_md;
   _expected_uses = expected_uses;
   _depth = 1 + (caller->has_method() ? caller->depth() : 0);
   _wrote_final = false;

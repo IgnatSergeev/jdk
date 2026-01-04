@@ -29,7 +29,6 @@
 #include "ci/ciObject.hpp"
 #include "utilities/growableArray.hpp"
 #include "utilities/vmEnums.hpp"
-
 // ciObjectFactory
 //
 // This class handles requests for the creation of new instances

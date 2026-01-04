@@ -345,6 +345,7 @@ class Parse : public GraphKit {
   int           _depth;         // Inline tree depth, for debug printouts
   const TypeFunc*_tf;           // My kind of function type
   int           _entry_bci;     // the osr bci or InvocationEntryBci
+  ciMethodData*   _method_data;
 
   ciTypeFlow*   _flow;          // Results of previous flow pass.
   Block*        _blocks;        // Array of basic-block structs.
@@ -375,12 +376,13 @@ class Parse : public GraphKit {
 
  public:
   // Constructor
-  Parse(JVMState* caller, ciMethod* parse_method, float expected_uses);
+  Parse(JVMState* caller, ciMethod* parse_method, ciMethodData* parse_md, float expected_uses);
 
   virtual Parse* is_Parse() const { return (Parse*)this; }
 
   // Accessors.
   JVMState*     caller()        const { return _caller; }
+  ciMethodData*     method_data()        const { return _method_data; }
   float         expected_uses() const { return _expected_uses; }
   float         prof_factor()   const { return _prof_factor; }
   int           depth()         const { return _depth; }

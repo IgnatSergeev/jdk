@@ -23,6 +23,7 @@
  */
 
 #include "ci/ciCallSite.hpp"
+#include "ci/ciMethodData.hpp"
 #include "ci/ciMethodHandle.hpp"
 #include "ci/ciSymbols.hpp"
 #include "classfile/vmSymbols.hpp"
@@ -86,7 +87,7 @@ static void trace_type_profile(Compile* C, ciMethod* method, JVMState* jvms,
   }
 }
 
-CallGenerator* Compile::call_generator(ciMethod* callee, int vtable_index, bool call_does_dispatch,
+CallGenerator* Compile::call_generator(ciMethod* callee, ciMethodData* caller_md, int vtable_index, bool call_does_dispatch,
                                        JVMState* jvms, bool allow_inline,
                                        float prof_factor, ciKlass* speculative_receiver_type,
                                        bool allow_intrinsics) {
@@ -151,7 +152,7 @@ CallGenerator* Compile::call_generator(ciMethod* callee, int vtable_index, bool 
     if (cg != nullptr) {
       if (cg->is_predicated()) {
         // Code without intrinsic but, hopefully, inlined.
-        CallGenerator* inline_cg = this->call_generator(callee,
+        CallGenerator* inline_cg = this->call_generator(callee, caller_md,
               vtable_index, call_does_dispatch, jvms, allow_inline, prof_factor, speculative_receiver_type, false);
         if (inline_cg != nullptr) {
           cg = CallGenerator::for_predicated_intrinsic(cg, inline_cg);
@@ -194,7 +195,15 @@ CallGenerator* Compile::call_generator(ciMethod* callee, int vtable_index, bool 
       InlineTree* ilt = InlineTree::find_subtree_from_root(this->ilt(), jvms->caller(), jvms->method());
       bool should_delay = C->should_delay_inlining() || C->directive()->should_delay_inline(callee);
       if (ilt->ok_to_inline(callee, jvms, profile, should_delay)) {
-        CallGenerator* cg = CallGenerator::for_inline(callee, expected_uses);
+        // FIXME: remove assert
+        // debug purposes, in case we provide null, then we get original md
+        // that is unwanted
+        // assert(caller_md != nullptr, "inlining requires non null caller method data");
+        // FIXME: if missing caller sometimes makes sense, then we should directly provide bci
+        ciMethodData* specialized_method_data = jvms->caller() != nullptr ?
+          env()->specialized_method_data(callee, caller_md, jvms->caller()->bci()):
+          callee->method_data();
+        CallGenerator* cg = CallGenerator::for_inline(callee, specialized_method_data, expected_uses);
         // For optimized virtual calls assert at runtime that receiver object
         // is a subtype of the inlined method holder. CHA can report a method
         // as a unique target under an abstract method, but receiver type
@@ -264,7 +273,7 @@ CallGenerator* Compile::call_generator(ciMethod* callee, int vtable_index, bool 
       }
       if (receiver_method != nullptr) {
         // The single majority receiver sufficiently outweighs the minority.
-        CallGenerator* hit_cg = this->call_generator(receiver_method,
+        CallGenerator* hit_cg = this->call_generator(receiver_method, caller_md,
               vtable_index, !call_does_dispatch, jvms, allow_inline, prof_factor);
         if (hit_cg != nullptr) {
           // Look up second receiver.
@@ -275,7 +284,7 @@ CallGenerator* Compile::call_generator(ciMethod* callee, int vtable_index, bool 
             next_receiver_method = callee->resolve_invoke(jvms->method()->holder(),
                                                           profile.receiver(1));
             if (next_receiver_method != nullptr) {
-              next_hit_cg = this->call_generator(next_receiver_method,
+              next_hit_cg = this->call_generator(next_receiver_method, caller_md,
                                   vtable_index, !call_does_dispatch, jvms,
                                   allow_inline, prof_factor);
               if (next_hit_cg != nullptr && !next_hit_cg->is_inline() &&
@@ -363,7 +372,7 @@ CallGenerator* Compile::call_generator(ciMethod* callee, int vtable_index, bool 
           ciKlass* holder = cha_monomorphic_target->holder();
 
           // Try to inline the method found by CHA. Inlined method is guarded by the type check.
-          CallGenerator* hit_cg = call_generator(cha_monomorphic_target,
+          CallGenerator* hit_cg = call_generator(cha_monomorphic_target, caller_md,
               vtable_index, !call_does_dispatch, jvms, allow_inline, prof_factor);
 
           // Deoptimize on type check fail. The interpreter will throw ICCE for us.
@@ -655,7 +664,8 @@ void Parse::do_call() {
   // Decide call tactic.
   // This call checks with CHA, the interpreter profile, intrinsics table, etc.
   // It decides whether inlining is desirable or not.
-  CallGenerator* cg = C->call_generator(callee, vtable_index, call_does_dispatch, jvms, try_inline, prof_factor(), speculative_receiver_type);
+
+  CallGenerator* cg = C->call_generator(callee, method_data(), vtable_index, call_does_dispatch, jvms, try_inline, prof_factor(), speculative_receiver_type);
 
   // NOTE:  Don't use orig_callee and callee after this point!  Use cg->method() instead.
   orig_callee = callee = nullptr;
@@ -700,7 +710,7 @@ void Parse::do_call() {
     // the call site, perhaps because it did not match a pattern the
     // intrinsic was expecting to optimize. Should always be possible to
     // get a normal java call that may inline in that case
-    cg = C->call_generator(cg->method(), vtable_index, call_does_dispatch, jvms, try_inline, prof_factor(), speculative_receiver_type, /* allow_intrinsics= */ false);
+    cg = C->call_generator(cg->method(), method_data(), vtable_index, call_does_dispatch, jvms, try_inline, prof_factor(), speculative_receiver_type, /* allow_intrinsics= */ false);
     new_jvms = cg->generate(jvms);
     if (new_jvms == nullptr) {
       guarantee(failing(), "call failed to generate:  calls should work");

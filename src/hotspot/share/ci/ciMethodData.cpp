@@ -393,6 +393,8 @@ ciProfileData* ciMethodData::data_from(DataLayout* data_layout) {
     return new ciVirtualCallTypeData(data_layout);
   case DataLayout::parameters_type_data_tag:
     return new ciParametersTypeData(data_layout);
+  case DataLayout::call_data_tag:
+    return new ciCallData(data_layout);
   };
 }
 

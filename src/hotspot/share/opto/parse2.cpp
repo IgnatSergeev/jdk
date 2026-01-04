@@ -423,7 +423,7 @@ void Parse::do_tableswitch() {
     return;
   }
 
-  ciMethodData* methodData = method()->method_data();
+  ciMethodData* methodData = method_data();
   ciMultiBranchData* profile = nullptr;
   if (methodData->is_mature() && UseSwitchProfiling) {
     ciProfileData* data = methodData->bci_to_data(bci());
@@ -497,7 +497,7 @@ void Parse::do_lookupswitch() {
     return;
   }
 
-  ciMethodData* methodData = method()->method_data();
+  ciMethodData* methodData = method_data();
   ciMultiBranchData* profile = nullptr;
   if (methodData->is_mature() && UseSwitchProfiling) {
     ciProfileData* data = methodData->bci_to_data(bci());
@@ -877,7 +877,7 @@ bool Parse::create_jump_tables(Node* key_val, SwitchRange* lo, SwitchRange* hi) 
     }
   }
 
-  ciMethodData* methodData = method()->method_data();
+  ciMethodData* methodData = method_data();
   ciMultiBranchData* profile = nullptr;
   if (methodData->is_mature()) {
     ciProfileData* data = methodData->bci_to_data(bci());
@@ -1211,7 +1211,7 @@ float Parse::dynamic_branch_prediction(float &cnt, BoolTest::mask btest, Node* t
   if (use_mdo) {
     // Use MethodData information if it is available
     // FIXME: free the ProfileData structure
-    ciMethodData* methodData = method()->method_data();
+    ciMethodData* methodData = method_data();
     if (!methodData->is_mature())  return PROB_UNKNOWN;
     ciProfileData* data = methodData->bci_to_data(bci());
     if (data == nullptr) {
@@ -1306,7 +1306,7 @@ float Parse::branch_prediction(float& cnt,
       // Since it's an OSR, we probably have profile data, but since
       // branch_prediction returned PROB_UNKNOWN, the counts are too small.
       // Let's make a special check here for completely zero counts.
-      ciMethodData* methodData = method()->method_data();
+      ciMethodData* methodData = method_data();
       if (!methodData->is_empty()) {
         ciProfileData* data = methodData->bci_to_data(bci());
         // Only stop for truly zero counts, which mean an unknown part
@@ -2702,7 +2702,7 @@ void Parse::do_one_bytecode() {
     // See if we can get some profile data and hand it off to the next block
     Block *target_block = block()->successor_for_bci(target_bci);
     if (target_block->pred_count() != 1)  break;
-    ciMethodData* methodData = method()->method_data();
+    ciMethodData* methodData = method_data();
     if (!methodData->is_mature())  break;
     ciProfileData* data = methodData->bci_to_data(bci());
     assert(data != nullptr && data->is_JumpData(), "need JumpData for taken branch");

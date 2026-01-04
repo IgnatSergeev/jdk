@@ -81,7 +81,8 @@ class Method : public Metadata {
   MethodFlags       _flags;
 
   u2                _intrinsic_id;               // vmSymbols::intrinsic_id (0 == _none)
-
+  int               _inline_counter=0;
+  int               _inline_attempts=0;             
   JFR_ONLY(DEFINE_TRACE_FLAG;)
 
 #ifndef PRODUCT
@@ -368,6 +369,20 @@ class Method : public Metadata {
   void unlink_code(nmethod *compare);
   // Locks NMethodState_lock if not held.
   void unlink_code();
+
+  void increment_inline_counter() {
+    _inline_counter++;
+  }
+  int inline_counter() const {
+    return _inline_counter;
+  }
+
+  void increment_inline_attempts() {
+    _inline_attempts++;
+  }
+  int inline_attempts() const {
+    return _inline_attempts;
+  }
 
 private:
   // Either called with NMethodState_lock held or from constructor.

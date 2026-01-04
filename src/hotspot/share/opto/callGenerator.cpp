@@ -68,8 +68,8 @@ private:
   float _expected_uses;
 
 public:
-  ParseGenerator(ciMethod* method, float expected_uses, bool is_osr = false)
-    : InlineCallGenerator(method)
+  ParseGenerator(ciMethod* method, ciMethodData* method_data, float expected_uses, bool is_osr = false)
+    : InlineCallGenerator(method, method_data)
   {
     _is_osr        = is_osr;
     _expected_uses = expected_uses;
@@ -94,7 +94,7 @@ JVMState* ParseGenerator::generate(JVMState* jvms) {
     return nullptr;  // bailing out of the compile; do not try to parse
   }
 
-  Parse parser(jvms, method(), _expected_uses);
+  Parse parser(jvms, method(), method_data(), _expected_uses);
   if (C->failing()) return nullptr;
 
   // Grab signature for matching/allocation
@@ -280,9 +280,9 @@ JVMState* VirtualCallGenerator::generate(JVMState* jvms) {
   return kit.transfer_exceptions_into_jvms();
 }
 
-CallGenerator* CallGenerator::for_inline(ciMethod* m, float expected_uses) {
+CallGenerator* CallGenerator::for_inline(ciMethod* m, ciMethodData* md, float expected_uses) {
   if (InlineTree::check_can_parse(m) != nullptr)  return nullptr;
-  return new ParseGenerator(m, expected_uses);
+  return new ParseGenerator(m, md, expected_uses);
 }
 
 // As a special case, the JVMS passed to this CallGenerator is
@@ -292,7 +292,8 @@ CallGenerator* CallGenerator::for_osr(ciMethod* m, int osr_bci) {
   if (InlineTree::check_can_parse(m) != nullptr)  return nullptr;
   float past_uses = m->interpreter_invocation_count();
   float expected_uses = past_uses;
-  return new ParseGenerator(m, expected_uses, true);
+  /// FIXME: provide specialized md
+  return new ParseGenerator(m, m->method_data(), expected_uses, true);
 }
 
 CallGenerator* CallGenerator::for_direct_call(ciMethod* m, bool separate_io_proj) {
@@ -520,7 +521,9 @@ bool LateInlineVirtualCallGenerator::do_late_inline_check(Compile* C, JVMState* 
                                 "late call devirtualization failed (interface call)");
     return false;
   }
+  /// FIXME: we should provide caller_md
   CallGenerator* cg = C->call_generator(_callee,
+                                        nullptr,
                                         vtable_index(),
                                         false /*call_does_dispatch*/,
                                         jvms,
@@ -1031,7 +1034,8 @@ CallGenerator* CallGenerator::for_method_handle_inline(JVMState* jvms, ciMethod*
             return nullptr;
           }
 
-          CallGenerator *cg = C->call_generator(target, vtable_index,
+          /// FIXME: we should provide caller_md
+          CallGenerator *cg = C->call_generator(target, nullptr, vtable_index,
                                                 false /* call_does_dispatch */,
                                                 jvms,
                                                 allow_inline,
@@ -1120,7 +1124,8 @@ CallGenerator* CallGenerator::for_method_handle_inline(JVMState* jvms, ciMethod*
           // provide us with a type
           speculative_receiver_type = (receiver_type != nullptr) ? receiver_type->speculative_type() : nullptr;
         }
-        CallGenerator* cg = C->call_generator(target, vtable_index, call_does_dispatch, jvms,
+        /// FIXME: we should provide caller_md
+        CallGenerator* cg = C->call_generator(target, nullptr, vtable_index, call_does_dispatch, jvms,
                                               allow_inline,
                                               PROB_ALWAYS,
                                               speculative_receiver_type);

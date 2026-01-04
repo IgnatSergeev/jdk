@@ -25,6 +25,7 @@
 #ifndef SHARE_OPTO_CALLGENERATOR_HPP
 #define SHARE_OPTO_CALLGENERATOR_HPP
 
+#include "ci/ciMethodData.hpp"
 #include "compiler/compileBroker.hpp"
 #include "opto/callnode.hpp"
 #include "opto/compile.hpp"
@@ -127,7 +128,7 @@ class CallGenerator : public ArenaObj {
   virtual JVMState* generate(JVMState* jvms) = 0;
 
   // How to generate a call site that is inlined:
-  static CallGenerator* for_inline(ciMethod* m, float expected_uses = -1);
+  static CallGenerator* for_inline(ciMethod* m, ciMethodData* md, float expected_uses = -1);
   // How to generate code for an on-stack replacement handler.
   static CallGenerator* for_osr(ciMethod* m, int osr_bci);
 
@@ -187,11 +188,16 @@ class CallGenerator : public ArenaObj {
 
 //------------------------InlineCallGenerator----------------------------------
 class InlineCallGenerator : public CallGenerator {
+ private:
+  ciMethodData*         _method_data;           // Method data of the called method
+
  protected:
-  InlineCallGenerator(ciMethod* method) : CallGenerator(method) {}
+  InlineCallGenerator(ciMethod* method, ciMethodData* md) : CallGenerator(method), _method_data(md) {}
 
  public:
   virtual bool      is_inline() const           { return true; }
+
+  ciMethodData*      method_data() const             { return _method_data; }
 };
 
 #endif // SHARE_OPTO_CALLGENERATOR_HPP

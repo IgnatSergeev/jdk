@@ -417,7 +417,7 @@ void ReturnTypeEntry::print_data_on(outputStream* st) const {
 }
 
 void CallTypeData::print_data_on(outputStream* st, const char* extra) const {
-  CounterData::print_data_on(st, extra);
+  CallData::print_data_on(st, extra);
   if (has_arguments()) {
     tab(st, true);
     st->print("argument types");
@@ -492,6 +492,14 @@ void ReceiverTypeData::print_receiver_data_on(outputStream* st) const {
       receiver(row)->print_value_on(st);
       st->print_cr("(%u %4.2f)", receiver_count(row), (float) receiver_count(row) / (float) total);
     }
+  }
+  if (specialized_data() != nullptr) {
+    tab(st);
+    st->print_cr("specialized(%p)", specialized_data());
+    tab(st);
+    st->print("specialized method data for");
+    specialized_data()->method()->print_short_name(st);
+    st->cr();
   }
 }
 void ReceiverTypeData::print_data_on(outputStream* st, const char* extra) const {
@@ -713,6 +721,23 @@ void SpeculativeTrapData::print_data_on(outputStream* st, const char* extra) con
   st->cr();
 }
 
+void CallData::metaspace_pointers_do(MetaspaceClosure* it) {
+  MethodData** m = (MethodData**)intptr_at_adr(specialized_data_off_set);
+  it->push(m);
+}
+
+void CallData::print_data_on(outputStream* st, const char* extra) const {
+  print_shared(st, "CallData", extra);
+  st->print("count(%u)", count());
+  if (specialized_data() != nullptr) {
+    st->print_cr(" specialized(%p)", specialized_data());
+    tab(st);
+    st->print("specialized method data for");
+    specialized_data()->method()->print_short_name(st);
+  }
+  st->cr();
+}
+
 // ==================================================================
 // MethodData*
 //
@@ -742,7 +767,7 @@ int MethodData::bytecode_cell_count(Bytecodes::Code code) {
     if (MethodData::profile_arguments() || MethodData::profile_return()) {
       return variable_cell_count;
     } else {
-      return CounterData::static_cell_count();
+      return CallData::static_cell_count();
     }
   case Bytecodes::_goto:
   case Bytecodes::_goto_w:
@@ -760,7 +785,7 @@ int MethodData::bytecode_cell_count(Bytecodes::Code code) {
     if (MethodData::profile_arguments() || MethodData::profile_return()) {
       return variable_cell_count;
     } else {
-      return CounterData::static_cell_count();
+      return CallData::static_cell_count();
     }
   case Bytecodes::_ret:
     return RetData::static_cell_count();
@@ -810,7 +835,7 @@ int MethodData::compute_data_size(BytecodeStream* stream) {
           profile_return_for_invoke(stream->method(), stream->bci())) {
         cell_count = CallTypeData::compute_cell_count(stream);
       } else {
-        cell_count = CounterData::static_cell_count();
+        cell_count = CallData::static_cell_count();
       }
       break;
     case Bytecodes::_invokevirtual:
@@ -1066,17 +1091,17 @@ int MethodData::initialize_data(BytecodeStream* stream,
     break;
   case Bytecodes::_invokespecial:
   case Bytecodes::_invokestatic: {
-    int counter_data_cell_count = CounterData::static_cell_count();
+    int call_data_cell_count = CallData::static_cell_count();
     if (profile_arguments_for_invoke(stream->method(), stream->bci()) ||
         profile_return_for_invoke(stream->method(), stream->bci())) {
       cell_count = CallTypeData::compute_cell_count(stream);
     } else {
-      cell_count = counter_data_cell_count;
+      cell_count = call_data_cell_count;
     }
-    if (cell_count > counter_data_cell_count) {
+    if (cell_count > call_data_cell_count) {
       tag = DataLayout::call_type_data_tag;
     } else {
-      tag = DataLayout::counter_data_tag;
+      tag = DataLayout::call_data_tag;
     }
     break;
   }
@@ -1105,17 +1130,17 @@ int MethodData::initialize_data(BytecodeStream* stream,
   }
   case Bytecodes::_invokedynamic: {
     // %%% should make a type profile for any invokedynamic that takes a ref argument
-    int counter_data_cell_count = CounterData::static_cell_count();
+    int call_data_cell_count = CallData::static_cell_count();
     if (profile_arguments_for_invoke(stream->method(), stream->bci()) ||
         profile_return_for_invoke(stream->method(), stream->bci())) {
       cell_count = CallTypeData::compute_cell_count(stream);
     } else {
-      cell_count = counter_data_cell_count;
+      cell_count = call_data_cell_count;
     }
-    if (cell_count > counter_data_cell_count) {
+    if (cell_count > call_data_cell_count) {
       tag = DataLayout::call_type_data_tag;
     } else {
-      tag = DataLayout::counter_data_tag;
+      tag = DataLayout::call_data_tag;
     }
     break;
   }
@@ -1153,7 +1178,7 @@ int MethodData::initialize_data(BytecodeStream* stream,
   assert(tag == DataLayout::multi_branch_data_tag ||
          ((MethodData::profile_arguments() || MethodData::profile_return()) &&
           (tag == DataLayout::call_type_data_tag ||
-           tag == DataLayout::counter_data_tag ||
+           tag == DataLayout::call_data_tag ||
            tag == DataLayout::virtual_call_type_data_tag ||
            tag == DataLayout::virtual_call_data_tag)) ||
          cell_count == bytecode_cell_count(c), "cell counts must agree");
@@ -1209,6 +1234,8 @@ int DataLayout::cell_count() {
     return ((new ParametersTypeData(this))->cell_count());
   case DataLayout::speculative_trap_data_tag:
     return SpeculativeTrapData::static_cell_count();
+  case DataLayout::call_data_tag:
+    return CallData::static_cell_count();
   }
 }
 ProfileData* DataLayout::data_in() {
@@ -1243,6 +1270,8 @@ ProfileData* DataLayout::data_in() {
     return new ParametersTypeData(this);
   case DataLayout::speculative_trap_data_tag:
     return new SpeculativeTrapData(this);
+  case DataLayout::call_data_tag:
+    return new CallData(this);
   }
 }
 
@@ -1426,8 +1455,26 @@ void MethodData::init() {
   _failed_speculations = nullptr;
 #endif
 
+  _is_specialized = false;
+
   // Initialize escape flags.
   clear_escape_info();
+}
+
+int MethodData::specialized_size_in_bytes() const {
+  int size = 0;
+  for (ProfileData* data = first_data();
+         is_valid(data);
+         data = next_data(data)) {
+    if (data->is_CallData()) {
+      MethodData* specialized = data->as_CallData()->specialized_data();
+      if (specialized != nullptr) {
+        size += specialized->size_in_bytes();
+        size += specialized->specialized_size_in_bytes();
+      }
+    }
+  }
+  return size;
 }
 
 bool MethodData::is_mature() const {
@@ -1631,6 +1678,15 @@ void MethodData::print_data_on(outputStream* st) const {
     st->print("%d", dp_to_di(data->dp()));
     st->fill_to(6);
     data->print_data_on(st, this);
+    if (data->is_CallData()) {
+      MethodData* specialized = data->as_CallData()->specialized_data();
+
+      if (specialized != nullptr) {
+        st->print_cr("<<");
+        specialized->print_data_on(st);
+        st->print_cr(">>");
+      }
+    }
   }
 
   st->print_cr("--- Extra data:");
@@ -1983,6 +2039,7 @@ void MethodData::clean_weak_method_links() {
 }
 
 void MethodData::deallocate_contents(ClassLoaderData* loader_data) {
+  clean_specialized_datas(loader_data);
   release_C_heap_structures();
 }
 
@@ -2017,3 +2074,18 @@ void MethodData::check_extra_data_locked() const {
            "JavaThread must have NoSafepointVerifier inside lock scope");
 }
 #endif
+
+void MethodData::clean_specialized_datas(ClassLoaderData* loader_data) {
+  ResourceMark rm;
+  for (ProfileData* data = first_data();
+         is_valid(data);
+         data = next_data(data)) {
+    if (data->is_CallData()) {
+      MethodData* specialized = data->as_CallData()->specialized_data();
+      if (specialized != nullptr) {
+        specialized->clean_specialized_datas(loader_data);
+        MetadataFactory::free_metadata(loader_data, specialized);
+      }
+    }
+  }
+}

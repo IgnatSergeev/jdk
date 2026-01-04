@@ -789,7 +789,7 @@ Compile::Compile(ciEnv* ci_env, ciMethod* target, int osr_bci,
       verify_start(s);
       float past_uses = method()->interpreter_invocation_count();
       float expected_uses = past_uses;
-      cg = CallGenerator::for_inline(method(), expected_uses);
+      cg = CallGenerator::for_inline(method(), method()->method_data(), expected_uses);
     }
     if (failing())  return;
     if (cg == nullptr) {

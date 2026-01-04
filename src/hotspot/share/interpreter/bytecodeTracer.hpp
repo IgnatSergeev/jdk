@@ -37,9 +37,12 @@ class outputStream;
 
 class BytecodeClosure;
 class BytecodeTracer: AllStatic {
+  friend class BytecodePrinter;
  public:
   NOT_PRODUCT(static void trace_interpreter(const methodHandle& method, address bcp, uintptr_t tos, uintptr_t tos2, outputStream* st = tty);)
   static void print_method_codes(const methodHandle& method, int from, int to, outputStream* st, int flags);
+ private:
+  static void print_method_codes(const methodHandle& method, MethodData* mdo, int from, int to, outputStream* st, int flags);
 };
 
 #endif // SHARE_INTERPRETER_BYTECODETRACER_HPP

@@ -131,7 +131,7 @@ BlockBegin* IRScope::build_graph(Compilation* compilation, int osr_bci) {
 }
 
 
-IRScope::IRScope(Compilation* compilation, IRScope* caller, int caller_bci, ciMethod* method, int osr_bci, bool create_graph)
+IRScope::IRScope(Compilation* compilation, IRScope* caller, int caller_bci, ciMethod* method, ciMethodData* method_data, int osr_bci, bool create_graph)
 : _compilation(compilation)
 , _callees(2)
 , _requires_phi_function(method->max_locals())
@@ -139,6 +139,7 @@ IRScope::IRScope(Compilation* compilation, IRScope* caller, int caller_bci, ciMe
   _caller             = caller;
   _level              = caller == nullptr ?  0 : caller->level() + 1;
   _method             = method;
+  _method_data = method_data != nullptr ? method_data : method->method_data_or_null();
   _xhandlers          = new XHandlers(method);
   _number_of_locks    = 0;
   _monitor_pairing_ok = method->has_balanced_monitors();
@@ -268,7 +269,7 @@ IR::IR(Compilation* compilation, ciMethod* method, int osr_bci) :
   _num_loops(0) {
   // setup IR fields
   _compilation = compilation;
-  _top_scope   = new IRScope(compilation, nullptr, -1, method, osr_bci, true);
+  _top_scope   = new IRScope(compilation, nullptr, -1, method, nullptr, osr_bci, true);
   _code        = nullptr;
 }
 
@@ -545,6 +546,7 @@ ComputeLinearScanOrder::ComputeLinearScanOrder(Compilation* c, BlockBegin* start
   if (compilation()->is_profiling()) {
     ciMethod *method = compilation()->method();
     if (!method->is_accessor()) {
+      //TODO: use specialized md
       ciMethodData* md = method->method_data_or_null();
       assert(md != nullptr, "Sanity");
       md->set_compilation_stats(_num_loops, _num_blocks);
