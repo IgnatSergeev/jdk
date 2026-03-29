@@ -124,6 +124,7 @@ bool GraphKit::jvms_in_sync() const {
     return true;
   }
   if (jvms()->method() != parse->method())    return false;
+  // Check method data?
   if (jvms()->bci()    != parse->bci())       return false;
   int jvms_sp = jvms()->sp();
   if (jvms_sp          != parse->sp())        return false;
@@ -629,6 +630,7 @@ bool GraphKit::is_builtin_throw_hot(Deoptimization::DeoptReason reason) {
     // Also, if there is a local exception handler, treat all throws
     // as hot if there has been at least one in this method.
     if (C->trap_count(reason) != 0 &&
+        // Traps are stored in original method data
         method()->method_data()->trap_count(reason) != 0 &&
         has_exception_handler()) {
       return true;
@@ -644,6 +646,7 @@ bool GraphKit::builtin_throw_too_many_traps(Deoptimization::DeoptReason reason,
       return false; // no traps; throws preallocated exception instead
     }
     ciMethod* m = Deoptimization::reason_is_speculate(reason) ? C->method() : nullptr;
+    // Traps are stored in original method data
     if (method()->method_data()->trap_recompiled_at(bci(), m) ||
         C->too_many_traps(reason)) {
       return true;
@@ -1392,6 +1395,7 @@ Node* GraphKit::null_check_common(Node* value, BasicType type,
   } else if (!assert_null &&
              (ImplicitNullCheckThreshold > 0) &&
              method() != nullptr &&
+             // Traps are stored in original method data
              (method()->method_data()->trap_count(reason)
               >= (uint)ImplicitNullCheckThreshold)) {
     ok_prob =  PROB_LIKELY_MAG(3);
@@ -2303,8 +2307,8 @@ Node* GraphKit::record_profiled_receiver_for_speculation(Node* n) {
   if ((java_bc() == Bytecodes::_checkcast ||
        java_bc() == Bytecodes::_instanceof ||
        java_bc() == Bytecodes::_aastore) &&
-      method()->method_data()->is_mature()) {
-    ciProfileData* data = method()->method_data()->bci_to_data(bci());
+      method_data()->is_mature()) {
+    ciProfileData* data = method_data()->bci_to_data(bci());
     if (data != nullptr) {
       if (!data->as_BitData()->null_seen()) {
         ptr_kind = ProfileNeverNull;
@@ -3164,7 +3168,7 @@ Node* GraphKit::gen_instanceof(Node* obj, Node* superklass, bool safe_for_replac
 
   ciProfileData* data = nullptr;
   if (java_bc() == Bytecodes::_instanceof) {  // Only for the bytecode
-    data = method()->method_data()->bci_to_data(bci());
+    data = method_data()->bci_to_data(bci());
   }
   bool speculative_not_null = false;
   bool never_see_null = (ProfileDynamicTypes  // aggressive use of profile
@@ -3297,7 +3301,7 @@ Node* GraphKit::gen_checkcast(Node *obj, Node* superklass,
     assert(java_bc() == Bytecodes::_aastore ||
            java_bc() == Bytecodes::_checkcast,
            "interpreter profiles type checks only for these BCs");
-    data = method()->method_data()->bci_to_data(bci());
+    data = method_data()->bci_to_data(bci());
     safe_for_replace = true;
   }
 
