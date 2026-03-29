@@ -45,9 +45,8 @@ class LibraryIntrinsic : public InlineCallGenerator {
   vmIntrinsics::ID _intrinsic_id;
 
  public:
-  /// FIXME: provide specialized md
   LibraryIntrinsic(ciMethod* m, bool is_virtual, int predicates_count, bool does_virtual_dispatch, vmIntrinsics::ID id)
-    : InlineCallGenerator(m, m->method_data()),
+    : InlineCallGenerator(m),
       _is_virtual(is_virtual),
       _does_virtual_dispatch(does_virtual_dispatch),
       _predicates_count((int8_t)predicates_count),
