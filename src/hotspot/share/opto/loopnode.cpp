@@ -3925,7 +3925,7 @@ static float estimate_path_freq( Node *n ) {
       Node *call = n->in(0)->in(0)->in(0);
       assert( call->is_Call(), "expect a call here" );
       const JVMState *jvms = ((CallNode*)call)->jvms();
-      ciMethodData* methodData = jvms->method()->method_data();
+      ciMethodData* methodData = jvms->method_data();
       if (!methodData->is_mature())  return 0.0f; // No call-site data
       ciProfileData* data = methodData->bci_to_data(jvms->bci());
       if ((data == nullptr) || !data->is_CounterData()) {

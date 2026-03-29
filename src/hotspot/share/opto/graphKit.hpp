@@ -65,6 +65,7 @@ class GraphKit : public Phase {
   SafePointNode*    _exceptions;// Parser map(s) for exception state(s)
   int               _bci;       // JVM Bytecode Pointer
   ciMethod*         _method;    // JVM Current Method
+  ciMethodData*     _method_data;    // JVM Current Method Data (Specialized if exists)
   BarrierSetC2*     _barrier_set;
 
  private:
@@ -139,12 +140,14 @@ class GraphKit : public Phase {
   int                bci()      const { return _bci; }
   Bytecodes::Code    java_bc()  const;
   ciMethod*          method()   const { return _method; }
+  ciMethodData*          method_data()   const { return _method_data; }
 
   void set_jvms(JVMState* jvms)       { set_map(jvms->map());
                                         assert(jvms == this->jvms(), "sanity");
                                         _sp = jvms->sp();
                                         _bci = jvms->bci();
-                                        _method = jvms->has_method() ? jvms->method() : nullptr; }
+                                        _method = jvms->has_method() ? jvms->method() : nullptr;
+                                        _method_data = jvms->has_method() ? jvms->method_data() : nullptr; }
   void set_map(SafePointNode* m)      { _map = m; DEBUG_ONLY(verify_map()); }
   void set_sp(int sp)                 { assert(sp >= 0, "sp must be non-negative: %d", sp); _sp = sp; }
   void clean_stack(int from_sp); // clear garbage beyond from_sp to top
