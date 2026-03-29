@@ -399,13 +399,14 @@ void Parse::load_interpreter_state(Node* osr_buf) {
 
 //------------------------------Parse------------------------------------------
 // Main parser constructor.
-Parse::Parse(JVMState* caller, ciMethod* parse_method, ciMethodData* parse_md, float expected_uses)
+Parse::Parse(JVMState* caller, ciMethod* parse_method, float expected_uses)
   : _exits(caller)
 {
   // Init some variables
   _caller = caller;
   _method = parse_method;
-  _method_data = parse_md;
+  // Unnecessary if its set via set_jvms
+  _method_data = ciEnv::current()->specialized_method_data(parse_method, caller->method_data(), caller->bci());
   _expected_uses = expected_uses;
   _depth = 1 + (caller->has_method() ? caller->depth() : 0);
   _wrote_final = false;
@@ -468,6 +469,7 @@ Parse::Parse(JVMState* caller, ciMethod* parse_method, ciMethodData* parse_md, f
 
   // Accumulate deoptimization counts.
   // (The range_check and store_check counts are checked elsewhere.)
+  // Traps are stored in original method data
   ciMethodData* md = method()->method_data();
   for (uint reason = 0; reason < md->trap_reason_limit(); reason++) {
     uint md_count = md->trap_count(reason);
@@ -1534,7 +1536,7 @@ void Parse::do_one_block() {
   iter().reset_to_bci(block()->start());
 
   if (ProfileExceptionHandlers && block()->is_handler()) {
-    ciMethodData* methodData = method()->method_data();
+    ciMethodData* methodData = method_data();
     if (methodData->is_mature()) {
       ciBitData data = methodData->exception_handler_bci_to_data(block()->start());
       if (!data.exception_handler_entered() || StressPrunedExceptionHandlers) {
