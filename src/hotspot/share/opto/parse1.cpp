@@ -405,7 +405,7 @@ Parse::Parse(JVMState* caller, ciMethod* parse_method, float expected_uses)
   // Init some variables
   _caller = caller;
   _method = parse_method;
-  // Unnecessary if its set via set_jvms
+  // FIXME: Unnecessary if its set via set_jvms
   _method_data = ciEnv::current()->specialized_method_data(parse_method, caller->method_data(), caller->bci());
   _expected_uses = expected_uses;
   _depth = 1 + (caller->has_method() ? caller->depth() : 0);
