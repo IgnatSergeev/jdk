@@ -1748,6 +1748,9 @@ ciMethodData* ciEnv::specialized_method_data_or_null(ciMethodData* caller_md, in
 }
 
 Pair<ciMethodData*, bool> ciEnv::ensure_specialized_method_data(ciMethod* callee, ciMethodData* caller_md, int bci) {
+  if (!SpecializedMethodData) {
+    return { callee->method_data(), true };
+  }
   assert(callee != nullptr, "callee should not be null");
   assert(caller_md != nullptr, "caller method data should not be null");
   assert(caller_md->bci_to_data(bci) != nullptr, "should be profile data");
@@ -1802,6 +1805,9 @@ Pair<ciMethodData*, bool> ciEnv::ensure_specialized_method_data(ciMethod* callee
 }
 
 ciMethodData* ciEnv::specialized_method_data(ciMethod* callee, ciMethodData* caller_md, int bci) {
+  if (!SpecializedMethodData) {
+    return callee->method_data();
+  }
   assert(callee != nullptr, "callee should not be null");
   ciMethodData* md = specialized_method_data_or_null(caller_md, bci);
   if (md == nullptr) {
