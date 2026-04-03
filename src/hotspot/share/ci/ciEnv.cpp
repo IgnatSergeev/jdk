@@ -1810,11 +1810,13 @@ ciMethodData* ciEnv::specialized_method_data(ciMethod* callee, ciMethodData* cal
   }
   assert(callee != nullptr, "callee should not be null");
   ciMethodData* md = specialized_method_data_or_null(caller_md, bci);
-  if (md == nullptr) {
+  GUARDED_VM_ENTRY({
+    if (md != nullptr) {
+      md->load_data();
+    }
+  });
+  if (md == nullptr || !md->is_mature()) {
     md = callee->method_data();
   }
-  GUARDED_VM_ENTRY({
-    md->load_data();
-  });
   return md;
 }
