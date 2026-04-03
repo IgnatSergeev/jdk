@@ -3159,8 +3159,7 @@ void LIRGenerator::increment_event_counter_impl(CodeEmitInfo* info,
     counter_holder = new_register(T_METADATA);
     offset = in_bytes(backedge ? MethodData::backedge_counter_offset() :
                                  MethodData::invocation_counter_offset());
-    //TODO: use specialized md
-    ciMethodData* md = method->method_data_or_null();
+    ciMethodData* md = info->scope()->method_data();
     assert(md != nullptr, "Sanity");
     __ metadata2reg(md->constant_encoding(), counter_holder);
   } else {

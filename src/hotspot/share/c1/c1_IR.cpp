@@ -546,7 +546,6 @@ ComputeLinearScanOrder::ComputeLinearScanOrder(Compilation* c, BlockBegin* start
   if (compilation()->is_profiling()) {
     ciMethod *method = compilation()->method();
     if (!method->is_accessor()) {
-      //TODO: use specialized md
       ciMethodData* md = method->method_data_or_null();
       assert(md != nullptr, "Sanity");
       md->set_compilation_stats(_num_loops, _num_blocks);
