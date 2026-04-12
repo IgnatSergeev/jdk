@@ -24,6 +24,7 @@
 
 #include "code/debugInfoRec.hpp"
 #include "code/scopeDesc.hpp"
+#include "ci/ciMethodData.hpp"
 #include "compiler/oopMap.hpp"
 #include "prims/jvmtiExport.hpp"
 #include "runtime/globals_extension.hpp"
@@ -280,6 +281,7 @@ int DebugInformationRecorder::find_sharable_decode_offset(int stream_offset) {
 void DebugInformationRecorder::describe_scope(int         pc_offset,
                                               const methodHandle& methodH,
                                               ciMethod*   method,
+                                              ciMethodData*   method_data,
                                               int         bci,
                                               bool        reexecute,
                                               bool        rethrow_exception,
@@ -318,6 +320,18 @@ void DebugInformationRecorder::describe_scope(int         pc_offset,
   }
   int method_enc_index = oop_recorder()->find_index(method_enc);
   stream()->write_int(method_enc_index);
+  Metadata* mdo_enc;
+  if (method_data != nullptr) {
+    mdo_enc = method_data->constant_encoding();
+  } else if (method != nullptr) {
+    mdo_enc = method->method_data()->constant_encoding();
+  } else if (methodH.not_null()) {
+    mdo_enc = methodH()->method_data();
+  } else {
+    mdo_enc = nullptr;
+  }
+  int mdo_enc_index = oop_recorder()->find_index(mdo_enc);
+  stream()->write_int(mdo_enc_index);
   stream()->write_bci(bci);
   assert(method == nullptr ||
          (method->is_native() && bci == 0) ||

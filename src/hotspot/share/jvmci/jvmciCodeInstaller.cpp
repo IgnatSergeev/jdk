@@ -1184,7 +1184,7 @@ void CodeInstaller::record_scope(jint pc_offset, HotSpotCompiledCodeStream* stre
       // has_ea_local_in_scope and arg_escape should be added to JVMCI
       const bool has_ea_local_in_scope = false;
       const bool arg_escape            = false;
-      _debug_recorder->describe_scope(pc_offset, method, nullptr, bci, reexecute, rethrow_exception, return_oop,
+      _debug_recorder->describe_scope(pc_offset, method, nullptr, nullptr, bci, reexecute, rethrow_exception, return_oop,
                                       has_ea_local_in_scope, arg_escape,
                                       locals_token, stack_token, monitors_token);
     }
