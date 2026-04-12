@@ -235,7 +235,7 @@ CallGenerator* Compile::call_generator(ciMethod* callee, int vtable_index, bool 
 
       int morphism = profile.morphism();
       if (speculative_receiver_type != nullptr) {
-        if (!too_many_traps_or_recompiles(caller, bci, Deoptimization::Reason_speculate_class_check)) {
+        if (!too_many_traps_or_recompiles(caller_md, bci, Deoptimization::Reason_speculate_class_check)) {
           // We have a speculative type, we should be able to resolve
           // the call. We do that before looking at the profiling at
           // this invoke because it may lead to bimorphic inlining which
@@ -291,7 +291,7 @@ CallGenerator* Compile::call_generator(ciMethod* callee, int vtable_index, bool 
                                                ? Deoptimization::Reason_bimorphic
                                                : Deoptimization::reason_class_check(speculative_receiver_type != nullptr));
           if ((morphism == 1 || (morphism == 2 && next_hit_cg != nullptr)) &&
-              !too_many_traps_or_recompiles(caller, bci, reason)
+              !too_many_traps_or_recompiles(caller_md, bci, reason)
              ) {
             // Generate uncommon trap for class check failure path
             // in case of monomorphic or bimorphic virtual call site.

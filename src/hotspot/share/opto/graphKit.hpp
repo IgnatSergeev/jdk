@@ -745,16 +745,16 @@ class GraphKit : public Phase {
   // Report if a trap was recorded, and/or PerMethodTrapLimit was exceeded.
   // If there is no MDO at all, report no trap unless told to assume it.
   bool too_many_traps(Deoptimization::DeoptReason reason) {
-    return C->too_many_traps(method(), bci(), reason);
+    return C->too_many_traps(method_data(), bci(), reason);
   }
 
   // Report if there were too many recompiles at the current method and bci.
   bool too_many_recompiles(Deoptimization::DeoptReason reason) {
-    return C->too_many_recompiles(method(), bci(), reason);
+    return C->too_many_recompiles(method_data(), bci(), reason);
   }
 
   bool too_many_traps_or_recompiles(Deoptimization::DeoptReason reason) {
-      return C->too_many_traps_or_recompiles(method(), bci(), reason);
+      return C->too_many_traps_or_recompiles(method_data(), bci(), reason);
   }
 
   // Returns the object (if any) which was created the moment before.
