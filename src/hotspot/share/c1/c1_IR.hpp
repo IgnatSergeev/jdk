@@ -248,7 +248,7 @@ class IRScopeDebugInfo: public CompilationResourceObj {
     bool rethrow_exception = false;
     bool has_ea_local_in_scope = false;
     bool arg_escape = false;
-    recorder->describe_scope(pc_offset, methodHandle(), scope()->method(), bci(),
+    recorder->describe_scope(pc_offset, methodHandle(), scope()->method(), scope()->method_data(), bci(),
                              reexecute, rethrow_exception, return_oop,
                              has_ea_local_in_scope, arg_escape, locvals, expvals, monvals);
   }
