@@ -472,8 +472,7 @@ Parse::Parse(JVMState* caller, ciMethod* parse_method, float expected_uses)
 
   // Accumulate deoptimization counts.
   // (The range_check and store_check counts are checked elsewhere.)
-  // Traps are stored in original method data
-  ciMethodData* md = method()->method_data();
+  ciMethodData* md = method_data();
   for (uint reason = 0; reason < md->trap_reason_limit(); reason++) {
     uint md_count = md->trap_count(reason);
     if (md_count != 0) {
