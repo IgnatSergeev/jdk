@@ -630,8 +630,7 @@ bool GraphKit::is_builtin_throw_hot(Deoptimization::DeoptReason reason) {
     // Also, if there is a local exception handler, treat all throws
     // as hot if there has been at least one in this method.
     if (C->trap_count(reason) != 0 &&
-        // Traps are stored in original method data
-        method()->method_data()->trap_count(reason) != 0 &&
+        method_data()->trap_count(reason) != 0 &&
         has_exception_handler()) {
       return true;
     }
@@ -646,8 +645,7 @@ bool GraphKit::builtin_throw_too_many_traps(Deoptimization::DeoptReason reason,
       return false; // no traps; throws preallocated exception instead
     }
     ciMethod* m = Deoptimization::reason_is_speculate(reason) ? C->method() : nullptr;
-    // Traps are stored in original method data
-    if (method()->method_data()->trap_recompiled_at(bci(), m) ||
+    if (method_data()->trap_recompiled_at(bci(), m) ||
         C->too_many_traps(reason)) {
       return true;
     }
@@ -1395,8 +1393,7 @@ Node* GraphKit::null_check_common(Node* value, BasicType type,
   } else if (!assert_null &&
              (ImplicitNullCheckThreshold > 0) &&
              method() != nullptr &&
-             // Traps are stored in original method data
-             (method()->method_data()->trap_count(reason)
+             (method_data()->trap_count(reason)
               >= (uint)ImplicitNullCheckThreshold)) {
     ok_prob =  PROB_LIKELY_MAG(3);
   }
