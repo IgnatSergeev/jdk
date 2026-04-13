@@ -347,11 +347,11 @@ class GraphBuilder {
   void inline_sync_entry(Value lock, BlockBegin* sync_handler);
   void fill_sync_handler(Value lock, BlockBegin* sync_handler, bool default_handler = false);
 
-  void build_graph_for_intrinsic(ciMethod* callee, bool ignore_return);
+  void build_graph_for_intrinsic(ciMethod* callee, ciMethodData* callee_md, bool ignore_return);
 
   // inliners
   bool try_inline(           ciMethod* callee, bool holder_known, bool ignore_return, Bytecodes::Code bc = Bytecodes::_illegal, Value receiver = nullptr);
-  bool try_inline_intrinsics(ciMethod* callee, bool ignore_return = false);
+  bool try_inline_intrinsics(ciMethod* callee, ciMethodData* callee_md, bool ignore_return = false);
   bool try_inline_full(      ciMethod* callee, bool holder_known, bool ignore_return, Bytecodes::Code bc = Bytecodes::_illegal, Value receiver = nullptr);
   bool try_inline_jsr(int jsr_dest_bci);
 
@@ -397,8 +397,8 @@ class GraphBuilder {
   bool profile_arguments()     { return _compilation->profile_arguments();     }
   bool profile_return()        { return _compilation->profile_return();        }
 
-  Values* args_list_for_profiling(ciMethod* target, int& start, bool may_have_receiver);
-  Values* collect_args_for_profiling(Values* args, ciMethod* target, bool may_have_receiver);
+  Values* args_list_for_profiling(ciMethod* target, ciMethodData* target_md, int& start, bool may_have_receiver);
+  Values* collect_args_for_profiling(Values* args, ciMethod* target, ciMethodData* target_md, bool may_have_receiver);
   void check_args_for_profiling(Values* obj_args, int expected);
 
  public:

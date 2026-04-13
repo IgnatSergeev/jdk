@@ -1864,23 +1864,23 @@ Dependencies* GraphBuilder::dependency_recorder() const {
 }
 
 // How many arguments do we want to profile?
-Values* GraphBuilder::args_list_for_profiling(ciMethod* target, int& start, bool may_have_receiver) {
+Values* GraphBuilder::args_list_for_profiling(ciMethod* target, ciMethodData* target_md, int& start, bool may_have_receiver) {
   int n = 0;
   bool has_receiver = may_have_receiver && Bytecodes::has_receiver(method()->java_code_at_bci(bci()));
   start = has_receiver ? 1 : 0;
   if (profile_arguments()) {
-    ciProfileData* data = method()->method_data()->bci_to_data(bci());
+    ciProfileData* data = method_data()->bci_to_data(bci());
     if (data != nullptr && (data->is_CallTypeData() || data->is_VirtualCallTypeData())) {
       n = data->is_CallTypeData() ? data->as_CallTypeData()->number_of_arguments() : data->as_VirtualCallTypeData()->number_of_arguments();
     }
   }
   // If we are inlining then we need to collect arguments to profile parameters for the target
   if (profile_parameters() && target != nullptr) {
-    if (target->method_data() != nullptr && target->method_data()->parameters_type_data() != nullptr) {
+    if (target_md != nullptr && target_md->parameters_type_data() != nullptr) {
       // The receiver is profiled on method entry so it's included in
       // the number of parameters but here we're only interested in
       // actual arguments.
-      n = MAX2(n, target->method_data()->parameters_type_data()->number_of_parameters() - start);
+      n = MAX2(n, target_md->parameters_type_data()->number_of_parameters() - start);
     }
   }
   if (n > 0) {
@@ -1899,9 +1899,9 @@ void GraphBuilder::check_args_for_profiling(Values* obj_args, int expected) {
 }
 
 // Collect arguments that we want to profile in a list
-Values* GraphBuilder::collect_args_for_profiling(Values* args, ciMethod* target, bool may_have_receiver) {
+Values* GraphBuilder::collect_args_for_profiling(Values* args, ciMethod* target, ciMethodData* target_md, bool may_have_receiver) {
   int start = 0;
-  Values* obj_args = args_list_for_profiling(target, start, may_have_receiver);
+  Values* obj_args = args_list_for_profiling(target, target_md, start, may_have_receiver);
   if (obj_args == nullptr) {
     return nullptr;
   }
@@ -2208,7 +2208,7 @@ void GraphBuilder::invoke(Bytecodes::Code code) {
         } else if (exact_target != nullptr) {
           target_klass = exact_target->holder();
         }
-        profile_call(target, nullptr, recv, target_klass, collect_args_for_profiling(args, nullptr, false), false);
+        profile_call(target, nullptr, recv, target_klass, collect_args_for_profiling(args, nullptr, nullptr, false), false);
       }
     }
   }
@@ -3337,7 +3337,7 @@ GraphBuilder::GraphBuilder(Compilation* compilation, IRScope* scope)
       }
 
       // Emit the intrinsic node.
-      bool result = try_inline_intrinsics(scope->method());
+      bool result = try_inline_intrinsics(scope->method(), scope->method_data());
       if (!result) BAILOUT("failed to inline intrinsic");
       method_return(dpop());
 
@@ -3380,7 +3380,7 @@ GraphBuilder::GraphBuilder(Compilation* compilation, IRScope* scope)
         load_local(objectType, 0);
 
         // Emit the intrinsic node.
-        bool result = try_inline_intrinsics(scope->method());
+        bool result = try_inline_intrinsics(scope->method(), scope->method_data());
         if (!result) BAILOUT("failed to inline intrinsic");
         method_return(apop());
 
@@ -3520,7 +3520,8 @@ bool GraphBuilder::try_inline(ciMethod* callee, bool holder_known, bool ignore_r
   // handle intrinsics
   if (callee->intrinsic_id() != vmIntrinsics::_none &&
       callee->check_intrinsic_candidate()) {
-    if (try_inline_intrinsics(callee, ignore_return)) {
+    // TODO: mb create specialized
+    if (try_inline_intrinsics(callee, callee->method_data(), ignore_return)) {
       print_inlining(callee, "intrinsic");
       set_flags_for_inlined_callee(compilation(), callee);
       return true;
@@ -3568,7 +3569,7 @@ const char* GraphBuilder::should_not_inline(ciMethod* callee) const {
   return nullptr;
 }
 
-void GraphBuilder::build_graph_for_intrinsic(ciMethod* callee, bool ignore_return) {
+void GraphBuilder::build_graph_for_intrinsic(ciMethod* callee, ciMethodData* callee_md, bool ignore_return) {
   vmIntrinsics::ID id = callee->intrinsic_id();
   assert(id != vmIntrinsics::_none, "must be a VM intrinsic");
 
@@ -3655,7 +3656,7 @@ void GraphBuilder::build_graph_for_intrinsic(ciMethod* callee, bool ignore_retur
           recv = args->at(0);
           null_check(recv);
         }
-        profile_call(callee, nullptr, recv, nullptr, collect_args_for_profiling(args, callee, true), true);
+        profile_call(callee, nullptr, recv, nullptr, collect_args_for_profiling(args, callee, callee_md, true), true);
       }
     }
   }
@@ -3675,7 +3676,7 @@ void GraphBuilder::build_graph_for_intrinsic(ciMethod* callee, bool ignore_retur
   }
 }
 
-bool GraphBuilder::try_inline_intrinsics(ciMethod* callee, bool ignore_return) {
+bool GraphBuilder::try_inline_intrinsics(ciMethod* callee, ciMethodData* callee_md, bool ignore_return) {
   // For calling is_intrinsic_available we need to transition to
   // the '_thread_in_vm' state because is_intrinsic_available()
   // accesses critical VM-internal data.
@@ -3695,7 +3696,7 @@ bool GraphBuilder::try_inline_intrinsics(ciMethod* callee, bool ignore_return) {
       return false;
     }
   }
-  build_graph_for_intrinsic(callee, ignore_return);
+  build_graph_for_intrinsic(callee, callee_md, ignore_return);
   if (_inline_bailout_msg != nullptr) {
     return false;
   }
@@ -3971,7 +3972,7 @@ bool GraphBuilder::try_inline_full(ciMethod* callee, bool holder_known, bool ign
 
     if (profile_calls()) {
       int start = 0;
-      Values* obj_args = args_list_for_profiling(callee, start, has_receiver);
+      Values* obj_args = args_list_for_profiling(callee, md, start, has_receiver);
       if (obj_args != nullptr) {
         int s = obj_args->capacity();
         // if called through method handle invoke, some arguments may have been popped
