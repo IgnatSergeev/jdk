@@ -1173,7 +1173,7 @@ void PhaseOutput::Process_OopMap_Node(MachNode *mach, int current_offset) {
 
     // Make method available for all Safepoints
     ciMethod* scope_method = method ? method : C->method();
-    ciMethodData* scope_md = jvms->has_method() ? jvms->method_data() : C->method()->method_data();
+    ciMethodData* scope_md = jvms->has_method() ? jvms->method_data() : nullptr;
     // Describe the scope here
     assert(jvms->bci() >= InvocationEntryBci && jvms->bci() <= 0x10000, "must be a valid or entry BCI");
     assert(!jvms->should_reexecute() || depth == max_depth, "reexecute allowed only for the youngest");

@@ -48,6 +48,7 @@ class SimpleScopeDesc : public StackObj {
     DebugInfoReadStream buffer(code, pc_desc->scope_decode_offset());
     int ignore_sender = buffer.read_int();
     _method           = buffer.read_method();
+    buffer.read_method_data();
     _bci              = buffer.read_bci();
   }
 
