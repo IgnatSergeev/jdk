@@ -1,14 +1,14 @@
 with import <nixpkgs> {};
-pkgs.mkShell {
+(pkgs.buildFHSEnv {
     name = "jdk";
-    packages = [ 
+    targetPkgs = pkgs: ([ 
       # Lsp, treesitter-parsers and debugger
       pkgs.clang-tools 
       pkgs.vimPlugins.nvim-treesitter-parsers.cmake 
       pkgs.vimPlugins.nvim-treesitter-parsers.cpp
       pkgs.vimPlugins.nvim-treesitter-parsers.c 
       pkgs.vimPlugins.nvim-treesitter-parsers.yaml
-      pkgs.vimPlugins.nvim-treesitter-parsers.jsonc
+      pkgs.vimPlugins.nvim-treesitter-parsers.json
       pkgs.vimPlugins.nvim-treesitter-parsers.markdown
       pkgs.vimPlugins.nvim-treesitter-parsers.markdown_inline
       pkgs.vimPlugins.nvim-treesitter-parsers.nix
@@ -17,6 +17,7 @@ pkgs.mkShell {
       # Build tools
       pkgs.clang
       pkgs.bear
+      pkgs.libz
       pkgs.lld
       pkgs.autoconf
       pkgs.alsa-lib
@@ -31,12 +32,6 @@ pkgs.mkShell {
       pkgs.xorg.libXtst
       pkgs.xorg.libXi
       pkgs.xorg.libXt
-
-    ];
-    shellHook = ''
-      export CXX=g++
-      export CC=gcc
-      export FREETYPE_DEV=${pkgs.freetype.dev}/include
-      export FREETYPE_LIB=${pkgs.freetype}/lib
-    '';
-}
+    ]);
+    runScript = "zsh";
+}).env
