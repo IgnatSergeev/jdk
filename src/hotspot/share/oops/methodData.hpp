@@ -2342,6 +2342,9 @@ public:
   }
 
   int invocation_count_start() {
+    if (is_specialized()) {
+      return method()->method_data()->invocation_count_start();
+    }
     if (invocation_counter()->carry()) {
       return 0;
     }
@@ -2349,6 +2352,9 @@ public:
   }
 
   int backedge_count_start() {
+    if (is_specialized()) {
+      return method()->method_data()->backedge_count_start();
+    }
     if (backedge_counter()->carry()) {
       return 0;
     }
@@ -2359,12 +2365,26 @@ public:
   int backedge_count_delta()   { return backedge_count()   - backedge_count_start();   }
 
   void reset_start_counters() {
+    if (is_specialized()) {
+      method()->method_data()->reset_start_counters();
+      return;
+    }
     _invocation_counter_start = invocation_count();
     _backedge_counter_start = backedge_count();
   }
 
-  InvocationCounter* invocation_counter()     { return &_invocation_counter; }
-  InvocationCounter* backedge_counter()       { return &_backedge_counter;   }
+  InvocationCounter* invocation_counter()     {
+    if (is_specialized()) {
+      return method()->method_data()->invocation_counter();
+    }
+    return &_invocation_counter;
+  }
+  InvocationCounter* backedge_counter()       {
+    if (is_specialized()) {
+      return method()->method_data()->backedge_counter();
+    }
+    return &_backedge_counter;
+  }
 
 #if INCLUDE_JVMCI
   FailedSpeculation** get_failed_speculations_address() {

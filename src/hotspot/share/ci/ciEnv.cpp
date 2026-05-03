@@ -1815,7 +1815,7 @@ ciMethodData* ciEnv::specialized_method_data(ciMethod* callee, ciMethodData* cal
       md->load_data();
     }
   });
-  if (md == nullptr || !md->is_mature()) {
+  if (md == nullptr) {
     md = callee->method_data();
   }
   return md;
