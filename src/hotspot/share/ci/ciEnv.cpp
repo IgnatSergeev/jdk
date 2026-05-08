@@ -1815,14 +1815,28 @@ ciMethodData* ciEnv::specialized_method_data(ciMethod* callee, JVMState* caller)
     return callee->method_data();
   }
 
-  ciMethodData* md = specialized_method_data_or_null(caller->method_data(), caller->bci());
-  GUARDED_VM_ENTRY({
-    if (md != nullptr) {
-      md->load_data();
-    }
-  });
-  if (md == nullptr || !md->is_mature()) {
-    md = callee->method_data();
+  GrowableArray<Pair<ciMethod*, int>> call_sites(caller->depth());
+  for (JVMState* jvms = caller; jvms != nullptr && jvms->has_method(); jvms = jvms->caller()) {
+    call_sites.append({jvms->method(), jvms->bci()});
   }
-  return md;
+
+  for (int spec_depth = call_sites.length(); spec_depth > 0; spec_depth--) {
+    ciMethodData* md = call_sites.at(spec_depth - 1).first->method_data();
+    for (int i = spec_depth - 2; i >= 0; i--) {
+      md = specialized_method_data_or_null(md, call_sites.at(i + 1).second);
+    }
+    md = specialized_method_data_or_null(md, call_sites.at(0).second);
+
+    if (md != nullptr) {
+      GUARDED_VM_ENTRY({
+        md->load_data();
+      });
+
+      if (md->is_mature()) {
+        return md;
+      }
+    }
+  }
+
+  return callee->method_data();
 }
