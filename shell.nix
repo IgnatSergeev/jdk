@@ -26,8 +26,12 @@ with import <nixpkgs> {};
       pkgs.freetype
 
       pkgs.xorg.libX11
+      pkgs.xorg.libX11.dev
       pkgs.xorg.libXext
+      pkgs.xorg.libXext.dev
       pkgs.xorg.libXrender
+      pkgs.xorg.libXrender.dev
+      pkgs.xorg.xorgproto
       pkgs.xorg.libXrandr
       pkgs.xorg.libXtst
       pkgs.xorg.libXi
