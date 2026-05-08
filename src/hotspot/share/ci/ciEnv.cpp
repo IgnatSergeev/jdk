@@ -1804,12 +1804,18 @@ Pair<ciMethodData*, bool> ciEnv::ensure_specialized_method_data(ciMethod* callee
   return { md, result };
 }
 
-ciMethodData* ciEnv::specialized_method_data(ciMethod* callee, ciMethodData* caller_md, int bci) {
+ciMethodData* ciEnv::specialized_method_data(ciMethod* callee, JVMState* caller) {
+  assert(callee != nullptr, "callee should not be null");
+
   if (!SpecializedMethodData) {
     return callee->method_data();
   }
-  assert(callee != nullptr, "callee should not be null");
-  ciMethodData* md = specialized_method_data_or_null(caller_md, bci);
+
+  if (caller == nullptr || !caller->has_method()) {
+    return callee->method_data();
+  }
+
+  ciMethodData* md = specialized_method_data_or_null(caller->method_data(), caller->bci());
   GUARDED_VM_ENTRY({
     if (md != nullptr) {
       md->load_data();

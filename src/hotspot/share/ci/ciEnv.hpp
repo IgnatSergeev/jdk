@@ -40,6 +40,7 @@
 
 class CompileTask;
 class OopMapSet;
+class JVMState;
 
 // ciEnv
 //
@@ -529,7 +530,7 @@ public:
 
   // Returns existing callee`s specialized method data or fallbacks to its md
   // Loads method data in process
-  ciMethodData* specialized_method_data(ciMethod* callee, ciMethodData* caller_md, int bci);
+  ciMethodData* specialized_method_data(ciMethod* callee, JVMState* caller);
 };
 
 #endif // SHARE_CI_CIENV_HPP
