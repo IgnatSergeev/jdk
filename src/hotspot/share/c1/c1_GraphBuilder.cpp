@@ -3520,13 +3520,21 @@ bool GraphBuilder::try_inline(ciMethod* callee, bool holder_known, bool ignore_r
   // handle intrinsics
   if (callee->intrinsic_id() != vmIntrinsics::_none &&
       callee->check_intrinsic_candidate()) {
-    // TODO: mb create specialized
-    if (try_inline_intrinsics(callee, callee->method_data(), ignore_return)) {
+    ciMethodData* md = callee->method_data();
+    if (method_data() != nullptr) {
+      Pair<ciMethodData*, bool> ensured_md =
+        compilation()->env()->ensure_specialized_method_data(callee, method_data(), bci());
+      if (!ensured_md.second) {
+        INLINE_BAILOUT("mdo allocation failed");
+      }
+      md = ensured_md.first;
+    }
+
+    if (try_inline_intrinsics(callee, md, ignore_return)) {
       print_inlining(callee, "intrinsic");
       set_flags_for_inlined_callee(compilation(), callee);
       return true;
     }
-    // try normal inlining
   }
 
   // certain methods cannot be parsed at all
@@ -3656,7 +3664,7 @@ void GraphBuilder::build_graph_for_intrinsic(ciMethod* callee, ciMethodData* cal
           recv = args->at(0);
           null_check(recv);
         }
-        profile_call(callee, nullptr, recv, nullptr, collect_args_for_profiling(args, callee, callee_md, true), true);
+        profile_call(callee, callee_md, recv, nullptr, collect_args_for_profiling(args, callee, callee_md, true), true);
       }
     }
   }
@@ -3955,7 +3963,7 @@ bool GraphBuilder::try_inline_full(ciMethod* callee, bool holder_known, bool ign
     null_check(recv);
   }
 
-  ciMethodData* md = nullptr;
+  ciMethodData* md = callee->method_data();
   if (is_profiling() && method_data() != nullptr) {
     Pair<ciMethodData*, bool> ensured_md =
       compilation()->env()->ensure_specialized_method_data(callee, method_data(), bci());
