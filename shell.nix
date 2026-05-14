@@ -21,10 +21,16 @@ with import <nixpkgs> {};
       pkgs.lld
       pkgs.autoconf
       pkgs.alsa-lib
+      pkgs.alsa-lib.dev
       pkgs.cups
+      pkgs.cups.dev
       pkgs.fontconfig
+      pkgs.fontconfig.dev
       pkgs.freetype
+      pkgs.freetype.dev
 
+      pkgs.zlib
+      pkgs.zlib.dev
       pkgs.xorg.libX11
       pkgs.xorg.libX11.dev
       pkgs.xorg.libXext
@@ -33,9 +39,12 @@ with import <nixpkgs> {};
       pkgs.xorg.libXrender.dev
       pkgs.xorg.xorgproto
       pkgs.xorg.libXrandr
+      pkgs.xorg.libXrandr.dev
       pkgs.xorg.libXtst
       pkgs.xorg.libXi
+      pkgs.xorg.libXi.dev
       pkgs.xorg.libXt
+      pkgs.xorg.libXt.dev
     ]);
     runScript = "zsh";
 }).env
