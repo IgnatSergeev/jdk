@@ -3159,7 +3159,7 @@ void LIRGenerator::increment_event_counter_impl(CodeEmitInfo* info,
     counter_holder = new_register(T_METADATA);
     offset = in_bytes(backedge ? MethodData::backedge_counter_offset() :
                                  MethodData::invocation_counter_offset());
-    ciMethodData* md = method->method_data();
+    ciMethodData* md = info->scope()->method_data();
     assert(md != nullptr, "Sanity");
     __ metadata2reg(md->constant_encoding(), counter_holder);
   } else {
@@ -3170,16 +3170,6 @@ void LIRGenerator::increment_event_counter_impl(CodeEmitInfo* info,
   __ load(counter, result);
   __ add(result, step, result);
   __ store(result, counter);
-
-  if (level == CompLevel_full_profile && info->scope()->method_data()->is_specialized()) {
-    ciMethodData* md = info->scope()->method_data();
-    assert(md != nullptr, "Sanity");
-    __ metadata2reg(md->constant_encoding(), counter_holder);
-    __ load(counter, result);
-    __ add(result, step, result);
-    __ store(result, counter);
-  }
-
   if (notify && (!backedge || UseOnStackReplacement)) {
     LIR_Opr meth = LIR_OprFact::metadataConst(method->constant_encoding());
     // The bci for info can point to cmp for if's we want the if bci
