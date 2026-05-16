@@ -3521,7 +3521,7 @@ bool GraphBuilder::try_inline(ciMethod* callee, bool holder_known, bool ignore_r
   if (callee->intrinsic_id() != vmIntrinsics::_none &&
       callee->check_intrinsic_candidate()) {
     ciMethodData* md = callee->method_data();
-    if (method_data() != nullptr) {
+    if (method_data() != nullptr && callee->holder()->is_linked()) {
       Pair<ciMethodData*, bool> ensured_md =
         compilation()->env()->ensure_specialized_method_data(callee, method_data(), bci());
       if (!ensured_md.second) {
@@ -3708,7 +3708,6 @@ bool GraphBuilder::try_inline_intrinsics(ciMethod* callee, ciMethodData* callee_
   if (_inline_bailout_msg != nullptr) {
     return false;
   }
-  //TODO: replace with real mdo
   return true;
 }
 

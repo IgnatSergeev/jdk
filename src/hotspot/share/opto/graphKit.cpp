@@ -124,7 +124,6 @@ bool GraphKit::jvms_in_sync() const {
     return true;
   }
   if (jvms()->method() != parse->method())    return false;
-  if (jvms()->method_data() != parse->method_data())    return false;
   if (jvms()->bci()    != parse->bci())       return false;
   int jvms_sp = jvms()->sp();
   if (jvms_sp          != parse->sp())        return false;

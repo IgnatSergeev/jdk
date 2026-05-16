@@ -1799,6 +1799,7 @@ Pair<ciMethodData*, bool> ciEnv::ensure_specialized_method_data(ciMethod* callee
     MethodData* caller_mdo = (MethodData*)(caller_md->constant_encoding());
     MutexLocker ml(caller_mdo->extra_data_lock(), Mutex::_no_safepoint_check_flag);
     caller_mdo->bci_to_data(bci)->as_CallData()->set_specialized_data(new_specialized_mdo);
+    caller_md->bci_to_data(bci)->as_CallData()->set_specialized_data(new_specialized_mdo);
   }
 
   return { md, result };
