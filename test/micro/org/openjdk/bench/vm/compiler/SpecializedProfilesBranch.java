@@ -107,16 +107,7 @@ public class SpecializedProfilesBranch {
     }
 
     @Benchmark
-    public int positiveOnly() {
-        int sum = 0;
-        for (int i = 0; i < posData.length; i++) {
-            sum += branchInlinee(posData[i]);
-        }
-        return sum;
-    }
-
-    @Benchmark
-    public int negativeOnly() {
+    public int singleSiteSingleBranch() {
         int sum = 0;
         for (int i = 0; i < negData.length; i++) {
             sum += branchInlinee(negData[i]);
@@ -125,7 +116,7 @@ public class SpecializedProfilesBranch {
     }
 
     @Benchmark
-    public int positiveAndNegativeTwoSites() {
+    public int twoSitesTwoBranches() {
         int sum = 0;
         for (int i = 0; i < posData.length; i++) {
             sum += branchInlinee(posData[i]);
@@ -135,51 +126,12 @@ public class SpecializedProfilesBranch {
     }
 
     @Benchmark
-    public int positiveAndNegativeThreeSites() {
+    public int threeSitesTwoBranches() {
         int sum = 0;
         for (int i = 0; i < posData.length; i++) {
             sum += branchInlinee(posData[i]);
             sum += branchInlinee(posData[i]);
             sum += branchInlinee(negData[i]);
-        }
-        return sum;
-    }
-
-    @Benchmark
-    public int positiveOnlyTwoBranches() {
-        int sum = 0;
-        for (int i = 0; i < posData.length; i++) {
-            sum += branchInlineeTwoBranches(posData[i]);
-        }
-        return sum;
-    }
-
-    @Benchmark
-    public int negativeOnlyTwoBranches() {
-        int sum = 0;
-        for (int i = 0; i < negData.length; i++) {
-            sum += branchInlineeTwoBranches(negData[i]);
-        }
-        return sum;
-    }
-
-    @Benchmark
-    public int mixedTwoBranchesTwoSites() {
-        int sum = 0;
-        for (int i = 0; i < posData.length; i++) {
-            sum += branchInlineeTwoBranches(posData[i]);
-            sum += branchInlineeTwoBranches(negData[i]);
-        }
-        return sum;
-    }
-
-    @Benchmark
-    public int mixedTwoBranchesThreeSites() {
-        int sum = 0;
-        for (int i = 0; i < posData.length; i++) {
-            sum += branchInlineeTwoBranches(posData[i]);
-            sum += branchInlineeTwoBranches(posData[i]);
-            sum += branchInlineeTwoBranches(negData[i]);
         }
         return sum;
     }

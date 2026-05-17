@@ -127,7 +127,7 @@ public class SpecializedProfilesVirtualCall {
     }
 
     @Benchmark
-    public int singleMonomorphicSite() {
+    public int singleSiteSingleType() {
         int sum = 0;
         for (int i = 0; i < data.length; i++) {
             sum += virtualInlinee(classReceivers[0], data[i]);
@@ -136,7 +136,7 @@ public class SpecializedProfilesVirtualCall {
     }
 
     @Benchmark
-    public int twoSitesDifferentTypes() {
+    public int twoSitesTwoTypes() {
         int sum = 0;
         for (int i = 0; i < data.length; i++) {
             sum += virtualInlinee(classReceivers[0], data[i]);
@@ -146,7 +146,7 @@ public class SpecializedProfilesVirtualCall {
     }
 
     @Benchmark
-    public int threeSitesDifferentTypes() {
+    public int threeSitesThreeTypes() {
         int sum = 0;
         for (int i = 0; i < data.length; i++) {
             sum += virtualInlinee(classReceivers[0], data[i]);
@@ -157,7 +157,7 @@ public class SpecializedProfilesVirtualCall {
     }
 
     @Benchmark
-    public int twoInterfaceSites() {
+    public int twoSitesTwoInterfaces() {
         int sum = 0;
         for (int i = 0; i < data.length; i++) {
             sum += interfaceInlinee(ifaceReceivers[0], data[i]);
@@ -167,7 +167,7 @@ public class SpecializedProfilesVirtualCall {
     }
 
     @Benchmark
-    public int threeInterfaceSites() {
+    public int threeSitesThreeInterfaces() {
         int sum = 0;
         for (int i = 0; i < data.length; i++) {
             sum += interfaceInlinee(ifaceReceivers[0], data[i]);

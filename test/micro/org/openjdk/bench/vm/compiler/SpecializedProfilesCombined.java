@@ -121,7 +121,7 @@ public class SpecializedProfilesCombined {
     }
 
     @Benchmark
-    public int singleTypePositiveData() {
+    public int singleSiteSingleTypeSingleBranch() {
         int sum = 0;
         for (int i = 0; i < posData.length; i++) {
             sum += combinedInlinee(receivers[0], posData[i]);
@@ -130,7 +130,7 @@ public class SpecializedProfilesCombined {
     }
 
     @Benchmark
-    public int twoTypesSameData() {
+    public int twoSitesTwoTypesSingleBranch() {
         int sum = 0;
         for (int i = 0; i < data.length; i++) {
             sum += combinedInlinee(receivers[0], data[i]);
@@ -140,7 +140,7 @@ public class SpecializedProfilesCombined {
     }
 
     @Benchmark
-    public int twoTypesDifferentData() {
+    public int twoSitesTwoTypesTwoBranches() {
         int sum = 0;
         for (int i = 0; i < posData.length; i++) {
             sum += combinedInlinee(receivers[0], posData[i]);
@@ -150,7 +150,7 @@ public class SpecializedProfilesCombined {
     }
 
     @Benchmark
-    public int threeTypesMixedData() {
+    public int threeSitesThreeTypesTwoBranches() {
         int sum = 0;
         for (int i = 0; i < posData.length; i++) {
             sum += combinedInlinee(receivers[0], posData[i]);

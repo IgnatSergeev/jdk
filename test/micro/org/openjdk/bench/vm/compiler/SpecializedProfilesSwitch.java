@@ -107,7 +107,7 @@ public class SpecializedProfilesSwitch {
     }
 
     @Benchmark
-    public int case0Only() {
+    public int singleSiteSingleCase() {
         int sum = 0;
         for (int i = 0; i < case0Data.length; i++) {
             sum += switchInlinee(case0Data[i]);
@@ -116,7 +116,7 @@ public class SpecializedProfilesSwitch {
     }
 
     @Benchmark
-    public int case0AndCase1TwoSites() {
+    public int twoSitesTwoCases() {
         int sum = 0;
         for (int i = 0; i < case0Data.length; i++) {
             sum += switchInlinee(case0Data[i]);
@@ -126,42 +126,12 @@ public class SpecializedProfilesSwitch {
     }
 
     @Benchmark
-    public int allThreeCasesThreeSites() {
+    public int threeSitesAllCases() {
         int sum = 0;
         for (int i = 0; i < case0Data.length; i++) {
             sum += switchInlinee(case0Data[i]);
             sum += switchInlinee(case1Data[i]);
             sum += switchInlinee(case2Data[i]);
-        }
-        return sum;
-    }
-
-    @Benchmark
-    public int case4OnlyFiveCases() {
-        int sum = 0;
-        for (int i = 0; i < case4Data.length; i++) {
-            sum += switchInlineeFiveCases(case4Data[i]);
-        }
-        return sum;
-    }
-
-    @Benchmark
-    public int case0AndCase4TwoSitesFiveCases() {
-        int sum = 0;
-        for (int i = 0; i < case0Data.length; i++) {
-            sum += switchInlineeFiveCases(case0Data[i]);
-            sum += switchInlineeFiveCases(case4Data[i]);
-        }
-        return sum;
-    }
-
-    @Benchmark
-    public int case0Case1Case4ThreeSitesFiveCases() {
-        int sum = 0;
-        for (int i = 0; i < case0Data.length; i++) {
-            sum += switchInlineeFiveCases(case0Data[i]);
-            sum += switchInlineeFiveCases(case1Data[i]);
-            sum += switchInlineeFiveCases(case4Data[i]);
         }
         return sum;
     }
