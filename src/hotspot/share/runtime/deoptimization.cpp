@@ -2129,10 +2129,18 @@ JRT_ENTRY(void, Deoptimization::uncommon_trap_inner(JavaThread* current, jint tr
     } else {
       profiled_method = trap_method;
       trap_mdo = trap_scope->method_data();
+
+      if (trap_mdo == nullptr) {
+        trap_mdo = get_method_data(current, profiled_method, create_if_missing);
+      }
     }
 #else
     profiled_method = trap_method;
     trap_mdo = trap_scope->method_data();
+
+    if (trap_mdo == nullptr) {
+      trap_mdo = get_method_data(current, profiled_method, create_if_missing);
+    }
 #endif
 
     // update
