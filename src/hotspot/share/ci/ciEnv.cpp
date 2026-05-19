@@ -1767,10 +1767,12 @@ Pair<ciMethodData*, bool> ciEnv::ensure_specialized_method_data(ciMethod* callee
 
   ciMethodData* md = specialized_method_data_or_null(caller_md, bci);
   if (md != nullptr) {
-    bool result = false;
-    GUARDED_VM_ENTRY({
-      result = md->load_data();
-    });
+    bool result = true;
+    if (md->is_empty()) {
+      GUARDED_VM_ENTRY({
+        result = md->load_data();
+      });
+    }
     return { md, result };
   }
 

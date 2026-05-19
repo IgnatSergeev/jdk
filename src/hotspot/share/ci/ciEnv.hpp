@@ -520,15 +520,16 @@ private:
   // Creates mdo for specialized method
   MethodData* build_specialized_profiling_method_data(ciMethod* method, const methodHandle& h_m, TRAPS);
 
-  // Searches for existing callee`s specialized method data, if none found returns null
+  // Returns callee`s specialized method data with depth 1 or null if it doesnt exist
   ciMethodData* specialized_method_data_or_null(ciMethodData* caller_md, int bci);
 
 public:
-  // Creates or returns existing callee`s specialized method data
+  // Creates or returns existing callee`s specialized method data with depth 1
   // Loads method data in process
   Pair<ciMethodData*, bool> ensure_specialized_method_data(ciMethod* callee, ciMethodData* caller_md, int bci);
 
-  // Returns existing callee`s specialized method data or fallbacks to its md
+  // Finds most accurate callee`s specialized method data based on inline path
+  // If none exist returns original md
   // Loads method data in process
   ciMethodData* specialized_method_data(ciMethod* callee, JVMState* caller);
 };
