@@ -320,17 +320,13 @@ void DebugInformationRecorder::describe_scope(int         pc_offset,
   }
   int method_enc_index = oop_recorder()->find_index(method_enc);
   stream()->write_int(method_enc_index);
-  Metadata* mdo_enc;
-  if (method_data != nullptr) {
-    mdo_enc = method_data->constant_encoding();
-  } else if (method != nullptr) {
-    mdo_enc = method->method_data()->constant_encoding();
-  } else if (methodH.not_null()) {
-    mdo_enc = methodH()->method_data();
+  Metadata* specialized_mdo_enc;
+  if (method_data != nullptr && method_data->is_specialized()) {
+    specialized_mdo_enc = method_data->constant_encoding();
   } else {
-    mdo_enc = nullptr;
+    specialized_mdo_enc = nullptr;
   }
-  int mdo_enc_index = oop_recorder()->find_index(mdo_enc);
+  int mdo_enc_index = oop_recorder()->find_index(specialized_mdo_enc);
   stream()->write_int(mdo_enc_index);
   stream()->write_bci(bci);
   assert(method == nullptr ||

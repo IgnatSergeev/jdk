@@ -582,6 +582,15 @@ public:
   ByteSize offset_of_slot(ciProfileData* data, ByteSize slot_offset_in_data);
   int      byte_offset_of_slot(ciProfileData* data, ByteSize slot_offset_in_data) { return in_bytes(offset_of_slot(data, slot_offset_in_data)); }
 
+  bool is_specialized() const {
+    MethodData* mdo = get_MethodData();
+    if (mdo != nullptr) {
+      return mdo->is_specialized();
+    }
+
+    return false;
+  }
+
 #ifndef PRODUCT
   // printing support for method data
   void print();

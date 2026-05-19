@@ -69,7 +69,7 @@ class ScopeDesc : public ResourceObj {
 
   // JVM state
   Method* method()      const { return _method; }
-  MethodData* method_data()      const { return _method_data; }
+  MethodData* specialized_method_data()      const { return _specialized_method_data; }
   int          bci()      const { return _bci;    }
   bool should_reexecute() const { return _reexecute; }
   bool rethrow_exception() const { return _rethrow_exception; }
@@ -103,7 +103,7 @@ class ScopeDesc : public ResourceObj {
 
   // JVM state
   Method*       _method;
-  MethodData*       _method_data;
+  MethodData*       _specialized_method_data; // Specialized method data or null
   int           _bci;
   bool          _reexecute;
   bool          _rethrow_exception;

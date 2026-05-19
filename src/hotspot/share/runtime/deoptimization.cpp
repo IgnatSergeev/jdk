@@ -2121,29 +2121,22 @@ JRT_ENTRY(void, Deoptimization::uncommon_trap_inner(JavaThread* current, jint tr
     bool create_if_missing = ProfileTraps;
 
     methodHandle profiled_method;
-    MethodData* trap_mdo;
+    MethodData* trap_mdo = nullptr;
 #if INCLUDE_JVMCI
     if (nm->is_compiled_by_jvmci()) {
       profiled_method = methodHandle(current, nm->method());
-      trap_mdo = get_method_data(current, profiled_method, create_if_missing);
     } else {
       profiled_method = trap_method;
-      trap_mdo = trap_scope->method_data();
-
-      if (trap_mdo == nullptr) {
-        trap_mdo = get_method_data(current, profiled_method, create_if_missing);
-      }
+      trap_mdo = trap_scope->specialized_method_data();
     }
 #else
     profiled_method = trap_method;
-    trap_mdo = trap_scope->method_data();
+    trap_mdo = trap_scope->specialized_method_data();
+#endif
 
     if (trap_mdo == nullptr) {
       trap_mdo = get_method_data(current, profiled_method, create_if_missing);
     }
-#endif
-
-    // update
 
     { // Log Deoptimization event for JFR, UL and event system
       Method* tm = trap_method();
