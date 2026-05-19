@@ -1829,9 +1829,11 @@ ciMethodData* ciEnv::specialized_method_data(ciMethod* callee, JVMState* caller)
     md = specialized_method_data_or_null(md, call_sites.at(0).second);
 
     if (md != nullptr) {
-      GUARDED_VM_ENTRY({
-        md->load_data();
-      });
+      if (md->is_empty()) {
+        GUARDED_VM_ENTRY({
+          md->load_data();
+        });
+      }
 
       if (md->is_mature()) {
         return md;
