@@ -1033,9 +1033,9 @@ public:
     return static_cell_count();
   }
 
-  void set_specialized_data(MethodData* md) {
-    assert(specialized_data() == nullptr, "specialized data overwrite");
-    set_intptr_at(specialized_data_off_set, reinterpret_cast<intptr_t>(md));
+  bool set_specialized_data(MethodData* md) {
+    MethodData** m = (MethodData**)intptr_at_adr(specialized_data_off_set);
+    return AtomicAccess::replace_if_null(m, md);
   }
   MethodData* specialized_data() const {
     return (MethodData*)intptr_at(specialized_data_off_set);

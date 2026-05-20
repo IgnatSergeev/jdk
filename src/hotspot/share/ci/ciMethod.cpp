@@ -1027,6 +1027,25 @@ bool ciMethod::ensure_method_data(const methodHandle& h_m) {
   }
 }
 
+bool ciMethod::ensure_specialized_method_data(const methodHandle& h_m, CallData* call) {
+  EXCEPTION_CONTEXT;
+  if (is_native() || is_abstract() || h_m()->is_accessor()) {
+    return true;
+  }
+  if (call->specialized_data() == nullptr) {
+    Method::build_specialized_profiling_method_data(h_m, call, THREAD);
+    if (HAS_PENDING_EXCEPTION) {
+      CLEAR_PENDING_EXCEPTION;
+    }
+  }
+  if (call->specialized_data() != nullptr) {
+    ciMethodData* method_data = CURRENT_ENV->get_method_data(call->specialized_data());
+    return method_data->load_data();
+  } else {
+    return false;
+  }
+}
+
 // public, retroactive version
 bool ciMethod::ensure_method_data() {
   bool result = true;
@@ -1039,6 +1058,18 @@ bool ciMethod::ensure_method_data() {
   return result;
 }
 
+// public, retroactive version
+bool ciMethod::ensure_specialized_method_data(CallData* call) {
+  bool result = true;
+  ciMethodData* method_data = CURRENT_ENV->get_method_data(call->specialized_data());
+  if (method_data == nullptr || method_data->is_empty()) {
+    GUARDED_VM_ENTRY({
+      methodHandle mh(Thread::current(), get_Method());
+      result = ensure_specialized_method_data(mh, call);
+    });
+  }
+  return result;
+}
 
 // ------------------------------------------------------------------
 // ciMethod::method_data
@@ -1060,6 +1091,28 @@ ciMethodData* ciMethod::method_data() {
   }
   return _method_data;
 
+}
+
+ciMethodData* ciMethod::specialized_method_data(CallData* call) {
+  ciMethodData* method_data = CURRENT_ENV->get_method_data(call->specialized_data());
+  if (method_data != nullptr && !method_data->is_empty()) {
+    return method_data;
+  }
+
+  if (method_data != nullptr) {
+    method_data->load_data();
+  } else {
+    method_data = CURRENT_ENV->get_empty_methodData();
+  }
+  return method_data;
+}
+
+ciMethodData* ciMethod::specialized_method_data_or_null(CallData* call) {
+  ciMethodData *md = specialized_method_data(call);
+  if (md->is_empty()) {
+    return nullptr;
+  }
+  return md;
 }
 
 // ------------------------------------------------------------------
