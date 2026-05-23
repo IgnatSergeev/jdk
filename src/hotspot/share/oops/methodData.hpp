@@ -285,10 +285,10 @@ public:
 class ProfileData;
 class   BitData;
 class     CounterData;
+class       ReceiverTypeData;
+class         VirtualCallData;
+class           VirtualCallTypeData;
 class       CallData;
-class         ReceiverTypeData;
-class           VirtualCallData;
-class             VirtualCallTypeData;
 class         CallTypeData;
 class       RetData;
 class   JumpData;
@@ -307,6 +307,7 @@ class ProfileData : public ResourceObj {
   friend class TypeEntries;
   friend class ReturnTypeEntry;
   friend class TypeStackSlotEntries;
+  friend class MethodDataEntry;
 private:
   enum {
     tab_width_one = 16,
@@ -945,6 +946,71 @@ public:
   void print_data_on(outputStream* st) const;
 };
 
+// Method Data entry used to store specialized callee profile data. A single cell to record the
+// mdo pointer.
+class MethodDataEntry {
+
+private:
+  enum {
+    method_data_entry,
+    md_entry_cell_count
+  };
+
+  // ProfileData object this entry is part of
+  ProfileData* _pd;
+  // offset within the ProfileData object where the entry is
+  const int _offset;
+
+  void set_intptr_at(int index, intptr_t value) const {
+    _pd->set_intptr_at(_offset + index, value);
+  }
+
+  intptr_t* intptr_at_adr(int index) const {
+    return _pd->intptr_at_adr(_offset + index);
+  }
+
+  intptr_t intptr_at(int index) const {
+    return _pd->intptr_at(_offset + index);
+  }
+
+public:
+  MethodDataEntry(int offset)
+    : _pd(nullptr), _offset(offset) {}
+
+  void set_profile_data(ProfileData* pd) {
+    _pd = pd;
+  }
+
+  MethodData* method_data() const {
+    return (MethodData*)intptr_at(method_data_entry);
+  }
+
+  bool set_method_data(MethodData* md) {
+    if (md == nullptr) {
+      set_intptr_at(method_data_entry, (intptr_t)md);
+      return true;
+    }
+    MethodData** m = (MethodData**)intptr_at_adr(method_data_entry);
+    return AtomicAccess::replace_if_null(m, md);
+  }
+
+  static int static_cell_count() {
+    return md_entry_cell_count;
+  }
+
+  static ByteSize size() {
+    return in_ByteSize(static_cell_count() * DataLayout::cell_size);
+  }
+
+  // GC support
+  void clean_weak_klass_links(bool always_clean);
+
+  // CDS support
+  void metaspace_pointers_do(MetaspaceClosure* it);
+
+  void print_data_on(outputStream* st) const;
+};
+
 // Entries to collect type information at a call: contains arguments
 // (TypeStackSlotEntries), a return type (ReturnTypeEntry) and a
 // number of cells. Because the number of cells for the return type is
@@ -1005,60 +1071,53 @@ public:
 
 };
 
+// CallData
+//
+// A CallData is used to access profiling information about a non
+// virtual call for which we collect callee`s profile in specialized mdo.
 class CallData : public CounterData {
-  friend class VMStructs;
-  friend class JVMCIVMStructs;
-protected:
-  enum {
-    specialized_method_data = counter_cell_count,
-    call_cell_count,
-  };
+private:
+  // entry for callee`s specialized method data if any
+  MethodDataEntry _callee_specialization;
 
 public:
-  CallData(DataLayout* layout) : CounterData(layout) {
-    assert(layout->tag() == DataLayout::call_data_tag ||
-           layout->tag() == DataLayout::call_type_data_tag ||
-           layout->tag() == DataLayout::receiver_type_data_tag ||
-           layout->tag() == DataLayout::virtual_call_data_tag ||
-           layout->tag() == DataLayout::virtual_call_type_data_tag, "wrong type");
+  CallData(DataLayout* layout) :
+    CounterData(layout),
+    _callee_specialization(CounterData::static_cell_count())
+  {
+    assert(layout->tag() == DataLayout::call_type_data_tag ||
+           layout->tag() == DataLayout::call_data_tag, "wrong type");
+    // Some compilers (VC++) don't want this passed in member initialization list
+    _callee_specialization.set_profile_data(this);
+  }
+
+  MethodDataEntry* callee_spec() {
+    return &_callee_specialization;
   }
 
   virtual bool is_CallData() const { return true; }
 
   static int static_cell_count() {
-    return call_cell_count;
+    return CounterData::static_cell_count() + MethodDataEntry::static_cell_count();
   }
 
   virtual int cell_count() const {
     return static_cell_count();
   }
 
-  MethodData* method_data() const {
-    return (MethodData*)intptr_at(specialized_method_data);
-  }
-
-  void set_method_data(MethodData* md) {
-    assert(method_data() != nullptr, "cannot reassign specialized method data");
-    //
-    // MethodData** m = (MethodData**)intptr_at_adr(specialized_method_data);
-    // return AtomicAccess::replace_if_null(m, md);
-    set_intptr_at(specialized_method_data, (intptr_t)md);
-  }
-
-  static ByteSize method_data_offset() {
-    return cell_offset(specialized_method_data);
-  }
-
-  static ByteSize call_data_size() {
-    return cell_offset(static_cell_count());
-  }
-
   // GC support
-  virtual void clean_weak_klass_links(bool always_clean);
+  virtual void clean_weak_klass_links(bool always_clean) {
+    _callee_specialization.clean_weak_klass_links(always_clean);
+  }
 
-  virtual void metaspace_pointers_do(MetaspaceClosure* it);
+  // CDS support
+  virtual void metaspace_pointers_do(MetaspaceClosure* it) {
+    _callee_specialization.metaspace_pointers_do(it);
+  }
 
-  void print_specialization_data_on(outputStream* st) const;
+  void print_md_entry_on(outputStream* st) const {
+    _callee_specialization.print_data_on(st);
+  }
   virtual void print_data_on(outputStream* st, const char* extra = nullptr) const;
 };
 
@@ -1214,18 +1273,18 @@ public:
 // is seen. A per ReceiverTypeData counter is incremented on type
 // overflow (when there's no more room for a not yet profiled Klass*).
 //
-class ReceiverTypeData : public CallData {
+class ReceiverTypeData : public CounterData {
   friend class VMStructs;
   friend class JVMCIVMStructs;
 protected:
   enum {
-    receiver0_offset = call_cell_count,
+    receiver0_offset = counter_cell_count,
     count0_offset,
     receiver_type_row_cell_count = (count0_offset + 1) - receiver0_offset
   };
 
 public:
-  ReceiverTypeData(DataLayout* layout) : CallData(layout) {
+  ReceiverTypeData(DataLayout* layout) : CounterData(layout) {
     assert(layout->tag() == DataLayout::receiver_type_data_tag ||
            layout->tag() == DataLayout::virtual_call_data_tag ||
            layout->tag() == DataLayout::virtual_call_type_data_tag, "wrong type");
@@ -1234,7 +1293,7 @@ public:
   virtual bool is_ReceiverTypeData() const { return true; }
 
   static int static_cell_count() {
-    return call_cell_count + (uint)TypeProfileWidth * receiver_type_row_cell_count;
+    return counter_cell_count + (uint)TypeProfileWidth * receiver_type_row_cell_count;
   }
 
   virtual int cell_count() const {
@@ -1322,20 +1381,24 @@ public:
 // VirtualCallData
 //
 // A VirtualCallData is used to access profiling information about a
-// virtual call.  For now, it has nothing more than a ReceiverTypeData.
+// virtual call.
 class VirtualCallData : public ReceiverTypeData {
+private:
+  // entry for callee`s specialized method data if any
+  MethodDataEntry _callee_specialization;
+
 public:
-  VirtualCallData(DataLayout* layout) : ReceiverTypeData(layout) {
+  VirtualCallData(DataLayout* layout) : ReceiverTypeData(layout), _callee_specialization(ReceiverTypeData::static_cell_count()) {
     assert(layout->tag() == DataLayout::virtual_call_data_tag ||
            layout->tag() == DataLayout::virtual_call_type_data_tag, "wrong type");
+    _callee_specialization.set_profile_data(this);
   }
 
   virtual bool is_VirtualCallData() const { return true; }
 
   static int static_cell_count() {
     // At this point we could add more profile state, e.g., for arguments.
-    // But for now it's the same size as the base record type.
-    return ReceiverTypeData::static_cell_count();
+    return ReceiverTypeData::static_cell_count() + MethodDataEntry::static_cell_count();
   }
 
   virtual int cell_count() const {
@@ -1347,6 +1410,10 @@ public:
     return cell_offset(static_cell_count());
   }
 
+  MethodDataEntry* callee_spec() {
+    return &_callee_specialization;
+  }
+
   // GC support
   virtual void clean_weak_klass_links(bool always_clean);
 
@@ -1354,6 +1421,10 @@ public:
   virtual void metaspace_pointers_do(MetaspaceClosure* it);
 
   void print_method_data_on(outputStream* st) const NOT_JVMCI_RETURN;
+
+  void print_md_entry_on(outputStream* st) const {
+    _callee_specialization.print_data_on(st);
+  }
   void print_data_on(outputStream* st, const char* extra = nullptr) const;
 };
 

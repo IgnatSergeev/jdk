@@ -417,6 +417,32 @@ void ReturnTypeEntry::print_data_on(outputStream* st) const {
   st->cr();
 }
 
+void MethodDataEntry::clean_weak_klass_links(bool always_clean) {
+  if (method_data() != nullptr) {
+    method_data()->clean_method_data(always_clean);
+  }
+}
+
+void MethodDataEntry::metaspace_pointers_do(MetaspaceClosure* it) {
+  MethodData** m = (MethodData**)intptr_at_adr(method_data_entry);
+  it->push(m);
+}
+
+void MethodDataEntry::print_data_on(outputStream* st) const {
+  if (method_data() != nullptr) {
+    _pd->tab(st);
+    st->print("specialized for");
+    method_data()->method()->print_short_name(st);
+    st->cr();
+  }
+}
+
+void CallData::print_data_on(outputStream* st, const char* extra) const {
+  print_shared(st, "CallData", extra);
+  st->print_cr("count(%u)", count());
+  print_md_entry_on(st);
+}
+
 void CallTypeData::print_data_on(outputStream* st, const char* extra) const {
   print_shared(st, "CallTypeData", extra);
   st->print_cr("count(%u)", count());
@@ -430,7 +456,7 @@ void CallTypeData::print_data_on(outputStream* st, const char* extra) const {
     st->print("return type");
     _ret.print_data_on(st);
   }
-  print_specialization_data_on(st);
+  print_md_entry_on(st);
 }
 
 void VirtualCallTypeData::print_data_on(outputStream* st, const char* extra) const {
@@ -446,7 +472,7 @@ void VirtualCallTypeData::print_data_on(outputStream* st, const char* extra) con
     st->print("return type");
     _ret.print_data_on(st);
   }
-  print_specialization_data_on(st);
+  print_md_entry_on(st);
 }
 
 // ==================================================================
@@ -506,18 +532,18 @@ void ReceiverTypeData::print_data_on(outputStream* st, const char* extra) const 
 
 void VirtualCallData::clean_weak_klass_links(bool always_clean) {
   ReceiverTypeData::clean_weak_klass_links(always_clean);
-  CallData::clean_weak_klass_links(always_clean);
+  _callee_specialization.clean_weak_klass_links(always_clean);
 }
 
 void VirtualCallData::metaspace_pointers_do(MetaspaceClosure *it) {
   ReceiverTypeData::metaspace_pointers_do(it);
-  CallData::metaspace_pointers_do(it);
+  _callee_specialization.metaspace_pointers_do(it);
 }
 
 void VirtualCallData::print_data_on(outputStream* st, const char* extra) const {
   print_shared(st, "VirtualCallData", extra);
   print_receiver_data_on(st);
-  print_specialization_data_on(st);
+  print_md_entry_on(st);
 }
 
 // ==================================================================
@@ -729,32 +755,6 @@ void SpeculativeTrapData::print_data_on(outputStream* st, const char* extra) con
   st->cr();
 }
 
-void CallData::clean_weak_klass_links(bool always_clean) {
-  if (method_data() != nullptr) {
-    method_data()->clean_method_data(always_clean);
-  }
-}
-
-void CallData::metaspace_pointers_do(MetaspaceClosure* it) {
-  MethodData** m = (MethodData**)intptr_at_adr(specialized_method_data);
-  it->push(m);
-}
-
-void CallData::print_specialization_data_on(outputStream* st) const {
-  if (method_data() != nullptr) {
-    tab(st);
-    st->print("specialized for");
-    method_data()->method()->print_short_name(st);
-    st->cr();
-  }
-}
-
-void CallData::print_data_on(outputStream* st, const char* extra) const {
-  print_shared(st, "CallData", extra);
-  st->print_cr("count(%u)", count());
-  print_specialization_data_on(st);
-}
-
 // ==================================================================
 // MethodData*
 //
@@ -784,7 +784,7 @@ int MethodData::bytecode_cell_count(Bytecodes::Code code) {
     if (MethodData::profile_arguments() || MethodData::profile_return()) {
       return variable_cell_count;
     } else {
-      return CallData::static_cell_count();
+      return CounterData::static_cell_count();
     }
   case Bytecodes::_goto:
   case Bytecodes::_goto_w:
@@ -852,7 +852,7 @@ int MethodData::compute_data_size(BytecodeStream* stream) {
           profile_return_for_invoke(stream->method(), stream->bci())) {
         cell_count = CallTypeData::compute_cell_count(stream);
       } else {
-        cell_count = CallData::static_cell_count();
+        cell_count = CounterData::static_cell_count();
       }
       break;
     case Bytecodes::_invokevirtual:
@@ -1694,14 +1694,22 @@ void MethodData::print_data_on(outputStream* st) const {
     st->print("%d", dp_to_di(data->dp()));
     st->fill_to(6);
     data->print_data_on(st, this);
-    if (data->is_CallData()) {
-      MethodData* specialized_md = data->as_CallData()->method_data();
 
-      if (specialized_md != nullptr) {
-        st->print_cr("<<<<<<<<");
-        specialized_md->print_data_on(st);
-        st->print_cr(">>>>>>>>");
-      }
+    MethodDataEntry* spec = nullptr;
+    if (data->is_CallData()) {
+      spec = data->as_CallData()->callee_spec();
+    } else if (data->is_VirtualCallData()) {
+      spec = data->as_VirtualCallData()->callee_spec();
+    } else {
+      continue;
+    }
+
+    MethodData* spec_md = spec->method_data();
+
+    if (spec_md != nullptr) {
+      st->print_cr("<<<<<<<<");
+      spec_md->print_data_on(st);
+      st->print_cr(">>>>>>>>");
     }
   }
 
@@ -2022,17 +2030,31 @@ void MethodData::verify_extra_data_clean(CleanExtraDataClosure* cl) {
 
 void MethodData::clean_method_data(bool always_clean) {
   ResourceMark rm;
+  CleanExtraDataKlassClosure cl(always_clean);
+
   for (ProfileData* data = first_data();
        is_valid(data);
        data = next_data(data)) {
     data->clean_weak_klass_links(always_clean);
+
+    MethodDataEntry* spec = nullptr;
+    if (data->is_CallData()) {
+      spec = data->as_CallData()->callee_spec();
+    } else if (data->is_VirtualCallData()) {
+      spec = data->as_VirtualCallData()->callee_spec();
+    } else {
+      continue;
+    }
+
+    MethodData* spec_md = spec->method_data();
+    if (spec_md != nullptr && !cl.is_live(spec_md->method())) {
+      spec->set_method_data(nullptr);
+    }
   }
   ParametersTypeData* parameters = parameters_type_data();
   if (parameters != nullptr) {
     parameters->clean_weak_klass_links(always_clean);
   }
-
-  CleanExtraDataKlassClosure cl(always_clean);
 
   // Lock to modify extra data, and prevent Safepoint from breaking the lock
   MutexLocker ml(extra_data_lock(), Mutex::_no_safepoint_check_flag);
@@ -2045,18 +2067,28 @@ void MethodData::clean_method_data(bool always_clean) {
 // methods out of MethodData for all methods.
 void MethodData::clean_weak_method_links() {
   ResourceMark rm;
+  CleanExtraDataMethodClosure cl;
+
   for (ProfileData* data = first_data();
          is_valid(data);
          data = next_data(data)) {
+    MethodDataEntry* spec = nullptr;
     if (data->is_CallData()) {
-      MethodData* specialized_md = data->as_CallData()->method_data();
-      if (specialized_md != nullptr) {
-        specialized_md->clean_weak_method_links();
+      spec = data->as_CallData()->callee_spec();
+    } else if (data->is_VirtualCallData()) {
+      spec = data->as_VirtualCallData()->callee_spec();
+    } else {
+      continue;
+    }
+
+    MethodData* spec_md = spec->method_data();
+    if (spec_md != nullptr) {
+      spec_md->clean_weak_method_links();
+      if (!cl.is_live(spec_md->method())) {
+        spec->set_method_data(nullptr);
       }
     }
   }
-
-  CleanExtraDataMethodClosure cl;
 
   // Lock to modify extra data, and prevent Safepoint from breaking the lock
   MutexLocker ml(extra_data_lock(), Mutex::_no_safepoint_check_flag);
@@ -2106,10 +2138,19 @@ void MethodData::free_specialized_method_datas(ClassLoaderData* loader_data) {
   for (ProfileData* data = first_data();
          is_valid(data);
          data = next_data(data)) {
+    MethodDataEntry* spec = nullptr;
     if (data->is_CallData()) {
-      MethodData* specialized_md = data->as_CallData()->method_data();
-      if (specialized_md != nullptr) {
-        MetadataFactory::free_metadata(loader_data, specialized_md);
+      spec = data->as_CallData()->callee_spec();
+    } else if (data->is_VirtualCallData()) {
+      spec = data->as_VirtualCallData()->callee_spec();
+    } else {
+      continue;
+    }
+
+    if (spec->method_data() != nullptr) {
+      MethodData* spec_md = spec->method_data();
+      if (spec_md != nullptr) {
+        MetadataFactory::free_metadata(loader_data, spec_md);
       }
     }
   }
