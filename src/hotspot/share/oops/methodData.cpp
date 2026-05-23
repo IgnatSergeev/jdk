@@ -22,6 +22,7 @@
  *
  */
 
+#include "oops/methodData.hpp"
 #include "cds/cdsConfig.hpp"
 #include "ci/ciMethodData.hpp"
 #include "classfile/systemDictionaryShared.hpp"
@@ -417,7 +418,8 @@ void ReturnTypeEntry::print_data_on(outputStream* st) const {
 }
 
 void CallTypeData::print_data_on(outputStream* st, const char* extra) const {
-  CallData::print_data_on(st, extra);
+  print_shared(st, "CallTypeData", extra);
+  st->print_cr("count(%u)", count());
   if (has_arguments()) {
     tab(st, true);
     st->print("argument types");
@@ -428,10 +430,12 @@ void CallTypeData::print_data_on(outputStream* st, const char* extra) const {
     st->print("return type");
     _ret.print_data_on(st);
   }
+  print_specialization_data_on(st);
 }
 
 void VirtualCallTypeData::print_data_on(outputStream* st, const char* extra) const {
-  VirtualCallData::print_data_on(st, extra);
+  print_shared(st, "VirtualCallTypeData", extra);
+  print_receiver_data_on(st);
   if (has_arguments()) {
     tab(st, true);
     st->print("argument types");
@@ -442,6 +446,7 @@ void VirtualCallTypeData::print_data_on(outputStream* st, const char* extra) con
     st->print("return type");
     _ret.print_data_on(st);
   }
+  print_specialization_data_on(st);
 }
 
 // ==================================================================
@@ -453,7 +458,7 @@ void VirtualCallTypeData::print_data_on(outputStream* st, const char* extra) con
 // which are used to store a type profile for the receiver of the check.
 
 void ReceiverTypeData::clean_weak_klass_links(bool always_clean) {
-    for (uint row = 0; row < row_limit(); row++) {
+  for (uint row = 0; row < row_limit(); row++) {
     Klass* p = receiver(row);
     if (p != nullptr) {
       if (!always_clean && p->is_instance_klass() && InstanceKlass::cast(p)->is_not_initialized()) {
@@ -493,23 +498,26 @@ void ReceiverTypeData::print_receiver_data_on(outputStream* st) const {
       st->print_cr("(%u %4.2f)", receiver_count(row), (float) receiver_count(row) / (float) total);
     }
   }
-  if (specialized_data() != nullptr) {
-    tab(st);
-    st->print_cr("specialized(%p)", specialized_data());
-    tab(st);
-    st->print("specialized method data for");
-    specialized_data()->method()->print_short_name(st);
-    st->cr();
-  }
 }
 void ReceiverTypeData::print_data_on(outputStream* st, const char* extra) const {
   print_shared(st, "ReceiverTypeData", extra);
   print_receiver_data_on(st);
 }
 
+void VirtualCallData::clean_weak_klass_links(bool always_clean) {
+  ReceiverTypeData::clean_weak_klass_links(always_clean);
+  CallData::clean_weak_klass_links(always_clean);
+}
+
+void VirtualCallData::metaspace_pointers_do(MetaspaceClosure *it) {
+  ReceiverTypeData::metaspace_pointers_do(it);
+  CallData::metaspace_pointers_do(it);
+}
+
 void VirtualCallData::print_data_on(outputStream* st, const char* extra) const {
   print_shared(st, "VirtualCallData", extra);
   print_receiver_data_on(st);
+  print_specialization_data_on(st);
 }
 
 // ==================================================================
@@ -721,21 +729,30 @@ void SpeculativeTrapData::print_data_on(outputStream* st, const char* extra) con
   st->cr();
 }
 
+void CallData::clean_weak_klass_links(bool always_clean) {
+  if (method_data() != nullptr) {
+    method_data()->clean_method_data(always_clean);
+  }
+}
+
 void CallData::metaspace_pointers_do(MetaspaceClosure* it) {
-  MethodData** m = (MethodData**)intptr_at_adr(specialized_data_off_set);
+  MethodData** m = (MethodData**)intptr_at_adr(specialized_method_data);
   it->push(m);
+}
+
+void CallData::print_specialization_data_on(outputStream* st) const {
+  if (method_data() != nullptr) {
+    tab(st);
+    st->print("specialized for");
+    method_data()->method()->print_short_name(st);
+    st->cr();
+  }
 }
 
 void CallData::print_data_on(outputStream* st, const char* extra) const {
   print_shared(st, "CallData", extra);
-  st->print("count(%u)", count());
-  if (specialized_data() != nullptr) {
-    st->print_cr(" specialized(%p)", specialized_data());
-    tab(st);
-    st->print("specialized method data for");
-    specialized_data()->method()->print_short_name(st);
-  }
-  st->cr();
+  st->print_cr("count(%u)", count());
+  print_specialization_data_on(st);
 }
 
 // ==================================================================
@@ -1467,10 +1484,9 @@ int MethodData::specialized_size_in_bytes() const {
          is_valid(data);
          data = next_data(data)) {
     if (data->is_CallData()) {
-      MethodData* specialized = data->as_CallData()->specialized_data();
-      if (specialized != nullptr) {
-        size += specialized->size_in_bytes();
-        size += specialized->specialized_size_in_bytes();
+      MethodData* specialized_md = data->as_CallData()->method_data();
+      if (specialized_md != nullptr) {
+        size += specialized_md->size_in_bytes() + specialized_md->specialized_size_in_bytes();
       }
     }
   }
@@ -1679,12 +1695,12 @@ void MethodData::print_data_on(outputStream* st) const {
     st->fill_to(6);
     data->print_data_on(st, this);
     if (data->is_CallData()) {
-      MethodData* specialized = data->as_CallData()->specialized_data();
+      MethodData* specialized_md = data->as_CallData()->method_data();
 
-      if (specialized != nullptr) {
-        st->print_cr("<<");
-        specialized->print_data_on(st);
-        st->print_cr(">>");
+      if (specialized_md != nullptr) {
+        st->print_cr("<<<<<<<<");
+        specialized_md->print_data_on(st);
+        st->print_cr(">>>>>>>>");
       }
     }
   }
@@ -2029,6 +2045,17 @@ void MethodData::clean_method_data(bool always_clean) {
 // methods out of MethodData for all methods.
 void MethodData::clean_weak_method_links() {
   ResourceMark rm;
+  for (ProfileData* data = first_data();
+         is_valid(data);
+         data = next_data(data)) {
+    if (data->is_CallData()) {
+      MethodData* specialized_md = data->as_CallData()->method_data();
+      if (specialized_md != nullptr) {
+        specialized_md->clean_weak_method_links();
+      }
+    }
+  }
+
   CleanExtraDataMethodClosure cl;
 
   // Lock to modify extra data, and prevent Safepoint from breaking the lock
@@ -2039,7 +2066,7 @@ void MethodData::clean_weak_method_links() {
 }
 
 void MethodData::deallocate_contents(ClassLoaderData* loader_data) {
-  clean_specialized_datas(loader_data);
+  free_specialized_method_datas(loader_data);
   release_C_heap_structures();
 }
 
@@ -2075,16 +2102,14 @@ void MethodData::check_extra_data_locked() const {
 }
 #endif
 
-void MethodData::clean_specialized_datas(ClassLoaderData* loader_data) {
-  ResourceMark rm;
+void MethodData::free_specialized_method_datas(ClassLoaderData* loader_data) {
   for (ProfileData* data = first_data();
          is_valid(data);
          data = next_data(data)) {
     if (data->is_CallData()) {
-      MethodData* specialized = data->as_CallData()->specialized_data();
-      if (specialized != nullptr) {
-        specialized->clean_specialized_datas(loader_data);
-        MetadataFactory::free_metadata(loader_data, specialized);
+      MethodData* specialized_md = data->as_CallData()->method_data();
+      if (specialized_md != nullptr) {
+        MetadataFactory::free_metadata(loader_data, specialized_md);
       }
     }
   }

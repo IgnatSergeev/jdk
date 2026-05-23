@@ -1710,16 +1710,9 @@ Pair<ciMethodData*, bool> ciEnv::ensure_specialized_method_data(ciMethod* callee
     return { callee->method_data(), callee->ensure_method_data() };
   }
 
-  assert(caller_md != nullptr, "caller method data should not be null");
-  assert(caller_md->bci_to_data(bci) != nullptr, "should be profile data");
-  assert(caller_md->bci_to_data(bci)->is_CallData(), "should be call data");
+  bool result = callee->ensure_specialized_method_data(caller_md, bci);
 
-  MethodData* caller_mdo = (MethodData*)(caller_md->constant_encoding());
-  //MutexLocker ml(caller_mdo->extra_data_lock(), Mutex::_no_safepoint_check_flag);
-  CallData* call = caller_mdo->bci_to_data(bci)->as_CallData();
-  bool result = callee->ensure_specialized_method_data(call);
-
-  return { callee->specialized_method_data(call), result };
+  return { callee->specialized_method_data(caller_md, bci), result };
 }
 
 ciMethodData* ciEnv::specialized_method_data(ciMethod* callee, JVMState* caller) {
@@ -1739,21 +1732,26 @@ ciMethodData* ciEnv::specialized_method_data(ciMethod* callee, JVMState* caller)
   }
 
   for (int spec_depth = call_sites.length(); spec_depth > 0; spec_depth--) {
-    CallData* call = call_sites.at(spec_depth - 1).first->method_data()->bci_to_data(call_sites.at(spec_depth - 1).second)->as_CallData();
-    for (int i = spec_depth - 2; i >= 0; i--) {
-      ciMethodData* md = call_sites.at(i).first->specialized_method_data_or_null(call);
-      if (md == nullptr) {
-        call = nullptr;
-        break;
-      }
-      call = md->bci_to_data(call_sites.at(i).second)->as_CallData();
-    }
+    ciMethodData* caller_md = call_sites.at(spec_depth - 1).first->method_data();
+    int caller_bci = call_sites.at(spec_depth - 1).second;
 
-    if (call == nullptr) {
+    if (caller_md == nullptr) {
       continue;
     }
 
-    ciMethodData* md = callee->specialized_method_data_or_null(call);
+    for (int i = spec_depth - 2; i >= 0; i--) {
+      caller_md = call_sites.at(i).first->specialized_method_data_or_null(caller_md, caller_bci);
+      caller_bci = call_sites.at(i).second;
+
+      if (caller_md == nullptr) {
+        break;
+      }
+    }
+    if (caller_md == nullptr) {
+      continue;
+    }
+
+    ciMethodData* md = callee->specialized_method_data_or_null(caller_md, caller_bci);
     if (md != nullptr) {
       return md;
     }

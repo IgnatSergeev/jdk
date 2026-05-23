@@ -308,6 +308,7 @@ bool ciMethodData::load_data() {
 }
 
 void ciReceiverTypeData::translate_receiver_data_from(const ProfileData* data) {
+  rtd_super()->translate_call_data_from(data);
   for (uint row = 0; row < row_limit(); row++) {
     Klass* k = data->as_ReceiverTypeData()->receiver(row);
     if (k != nullptr && k->class_loader_data() != nullptr && is_klass_loaded(k)) {
@@ -905,6 +906,12 @@ void ciReturnTypeEntry::print_data_on(outputStream* st) const {
   st->print("ret ");
   print_ciklass(st, type());
   st->cr();
+}
+
+void ciCallData::translate_call_data_from(const ProfileData* data) {
+  MethodData* md = data->as_CallData()->method_data();
+  ciMethodData* ci_md = CURRENT_ENV->get_method_data(md);
+  set_method_data(ci_md);
 }
 
 void ciCallTypeData::print_data_on(outputStream* st, const char* extra) const {

@@ -1059,12 +1059,27 @@ bool ciMethod::ensure_method_data() {
 }
 
 // public, retroactive version
-bool ciMethod::ensure_specialized_method_data(CallData* call) {
+bool ciMethod::ensure_specialized_method_data(ciMethodData* caller_md, int bci) {
+  assert(caller_md != nullptr, "caller method data should not be null");
+  assert(caller_md->bci_to_data(bci) != nullptr, "should be profile data");
+  assert(caller_md->bci_to_data(bci)->is_CallData(), "should be call data");
+  CallData* ciCall = caller_md->bci_to_data(bci)->as_CallData();
+
   bool result = true;
-  ciMethodData* method_data = CURRENT_ENV->get_method_data(call->specialized_data());
+  ciMethodData* method_data;
+  GUARDED_VM_ENTRY({
+    method_data = CURRENT_ENV->get_method_data(ciCall->specialized_data());
+  });
   if (method_data == nullptr || method_data->is_empty()) {
     GUARDED_VM_ENTRY({
       methodHandle mh(Thread::current(), get_Method());
+      CallData* call;
+      {
+        // CallData assures atomic access
+        MethodData* caller_mdo = (MethodData*)(caller_md->constant_encoding());
+        MutexLocker ml(caller_mdo->extra_data_lock(), Mutex::_no_safepoint_check_flag);
+        call = caller_mdo->bci_to_data(bci)->as_CallData();
+      }
       result = ensure_specialized_method_data(mh, call);
     });
   }
@@ -1093,13 +1108,31 @@ ciMethodData* ciMethod::method_data() {
 
 }
 
-ciMethodData* ciMethod::specialized_method_data(CallData* call) {
-  ciMethodData* method_data = CURRENT_ENV->get_method_data(call->specialized_data());
+ciMethodData* ciMethod::specialized_method_data(ciMethodData* caller_md, int bci) {
+  assert(caller_md != nullptr, "caller method data should not be null");
+  assert(caller_md->bci_to_data(bci) != nullptr, "should be profile data");
+  assert(caller_md->bci_to_data(bci)->is_CallData(), "should be call data");
+  CallData* ciCall = caller_md->bci_to_data(bci)->as_CallData();
+
+  ciMethodData* method_data;
+  GUARDED_VM_ENTRY({
+    method_data = CURRENT_ENV->get_method_data(ciCall->specialized_data());
+  });
   if (method_data != nullptr && !method_data->is_empty()) {
     return method_data;
   }
 
-  if (method_data != nullptr) {
+  CallData* call;
+  {
+    // CallData assures atomic access
+    MethodData* caller_mdo = (MethodData*)(caller_md->constant_encoding());
+    MutexLocker ml(caller_mdo->extra_data_lock(), Mutex::_no_safepoint_check_flag);
+    call = caller_mdo->bci_to_data(bci)->as_CallData();
+  }
+
+  VM_ENTRY_MARK;
+  if (call->specialized_data() != nullptr) {
+    method_data = CURRENT_ENV->get_method_data(call->specialized_data());
     method_data->load_data();
   } else {
     method_data = CURRENT_ENV->get_empty_methodData();
@@ -1107,8 +1140,8 @@ ciMethodData* ciMethod::specialized_method_data(CallData* call) {
   return method_data;
 }
 
-ciMethodData* ciMethod::specialized_method_data_or_null(CallData* call) {
-  ciMethodData *md = specialized_method_data(call);
+ciMethodData* ciMethod::specialized_method_data_or_null(ciMethodData* caller_md, int bci) {
+  ciMethodData *md = specialized_method_data(caller_md, bci);
   if (md->is_empty()) {
     return nullptr;
   }

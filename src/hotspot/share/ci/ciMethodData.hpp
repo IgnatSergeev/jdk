@@ -145,16 +145,41 @@ public:
 class ciCallData : public CallData {
 public:
   ciCallData(DataLayout* layout) : CallData(layout) {}
+
+  virtual void translate_from(const ProfileData* data) {
+    translate_call_data_from(data);
+  }
+  void translate_call_data_from(const ProfileData* data);
+
+  ciMethodData* method_data() const {
+    return (ciMethodData*)intptr_at(specialized_method_data);
+  }
+
+  void set_method_data(ciMethodData* md) {
+    set_intptr_at(specialized_method_data, (intptr_t)md);
+  }
 };
 
 class ciCallTypeData : public CallTypeData {
+  // Fake multiple inheritance...  It's a ciCallData also.
+  ciCallData* rtd_super() const { return (ciCallData*) this; }
+
 public:
   ciCallTypeData(DataLayout* layout) : CallTypeData(layout) {}
+
+  ciMethodData* method_data() const {
+    return rtd_super()->method_data();
+  }
+
+  void set_method_data(ciMethodData* md) {
+    rtd_super()->set_method_data(md);
+  }
 
   ciTypeStackSlotEntries* args() const { return (ciTypeStackSlotEntries*)CallTypeData::args(); }
   ciReturnTypeEntry* ret() const { return (ciReturnTypeEntry*)CallTypeData::ret(); }
 
   void translate_from(const ProfileData* data) {
+    rtd_super()->translate_call_data_from(data);
     if (has_arguments()) {
       args()->translate_type_data_from(data->as_CallTypeData()->args());
     }
@@ -197,8 +222,19 @@ public:
 };
 
 class ciReceiverTypeData : public ReceiverTypeData {
+  // Fake multiple inheritance...  It's a ciCallData also.
+  ciCallData* rtd_super() const { return (ciCallData*) this; }
+
 public:
   ciReceiverTypeData(DataLayout* layout) : ReceiverTypeData(layout) {};
+
+  void set_method_data(ciMethodData* md) {
+    rtd_super()->set_method_data(md);
+  }
+
+  ciMethodData* method_data() {
+    return rtd_super()->method_data();
+  }
 
   void set_receiver(uint row, ciKlass* recv) {
     assert((uint)row < row_limit(), "oob");

@@ -1010,7 +1010,7 @@ class CallData : public CounterData {
   friend class JVMCIVMStructs;
 protected:
   enum {
-    specialized_data_off_set = counter_cell_count,
+    specialized_method_data = counter_cell_count,
     call_cell_count,
   };
 
@@ -1033,23 +1033,32 @@ public:
     return static_cell_count();
   }
 
-  bool set_specialized_data(MethodData* md) {
-    MethodData** m = (MethodData**)intptr_at_adr(specialized_data_off_set);
-    return AtomicAccess::replace_if_null(m, md);
-  }
-  MethodData* specialized_data() const {
-    return (MethodData*)intptr_at(specialized_data_off_set);
+  MethodData* method_data() const {
+    return (MethodData*)intptr_at(specialized_method_data);
   }
 
-  static ByteSize specialized_data_offset() {
-    return cell_offset(specialized_data_off_set);
+  void set_method_data(MethodData* md) {
+    assert(method_data() != nullptr, "cannot reassign specialized method data");
+    //
+    // MethodData** m = (MethodData**)intptr_at_adr(specialized_method_data);
+    // return AtomicAccess::replace_if_null(m, md);
+    set_intptr_at(specialized_method_data, (intptr_t)md);
   }
+
+  static ByteSize method_data_offset() {
+    return cell_offset(specialized_method_data);
+  }
+
   static ByteSize call_data_size() {
-    return cell_offset(call_cell_count);
+    return cell_offset(static_cell_count());
   }
+
+  // GC support
+  virtual void clean_weak_klass_links(bool always_clean);
 
   virtual void metaspace_pointers_do(MetaspaceClosure* it);
 
+  void print_specialization_data_on(outputStream* st) const;
   virtual void print_data_on(outputStream* st, const char* extra = nullptr) const;
 };
 
@@ -1173,6 +1182,7 @@ public:
 
   // GC support
   virtual void clean_weak_klass_links(bool always_clean) {
+    CallData::clean_weak_klass_links(always_clean);
     if (has_arguments()) {
       _args.clean_weak_klass_links(always_clean);
     }
@@ -1183,6 +1193,7 @@ public:
 
   // CDS support
   virtual void metaspace_pointers_do(MetaspaceClosure* it) {
+    CallData::metaspace_pointers_do(it);
     if (has_arguments()) {
       _args.metaspace_pointers_do(it);
     }
@@ -1336,6 +1347,12 @@ public:
     return cell_offset(static_cell_count());
   }
 
+  // GC support
+  virtual void clean_weak_klass_links(bool always_clean);
+
+  // CDS support
+  virtual void metaspace_pointers_do(MetaspaceClosure* it);
+
   void print_method_data_on(outputStream* st) const NOT_JVMCI_RETURN;
   void print_data_on(outputStream* st, const char* extra = nullptr) const;
 };
@@ -1460,7 +1477,7 @@ public:
 
   // GC support
   virtual void clean_weak_klass_links(bool always_clean) {
-    ReceiverTypeData::clean_weak_klass_links(always_clean);
+    VirtualCallData::clean_weak_klass_links(always_clean);
     if (has_arguments()) {
       _args.clean_weak_klass_links(always_clean);
     }
@@ -1471,7 +1488,7 @@ public:
 
   // CDS support
   virtual void metaspace_pointers_do(MetaspaceClosure* it) {
-    ReceiverTypeData::metaspace_pointers_do(it);
+    VirtualCallData::metaspace_pointers_do(it);
     if (has_arguments()) {
       _args.metaspace_pointers_do(it);
     }
@@ -2621,7 +2638,7 @@ public:
   bool is_specialized() const { return _is_specialized; }
   void mark_as_specialized() { _is_specialized = true; }
 
-  void clean_specialized_datas(ClassLoaderData* loader_data);
+  void free_specialized_method_datas(ClassLoaderData* loader_data);
 };
 
 #endif // SHARE_OOPS_METHODDATA_HPP

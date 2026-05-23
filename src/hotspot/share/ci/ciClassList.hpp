@@ -100,6 +100,7 @@ friend class ciMethod;                 \
 friend class ciMethodData;             \
 friend class ciMethodHandle;           \
 friend class ciMethodType;             \
+friend class ciCallData;       \
 friend class ciReceiverTypeData;       \
 friend class ciTypeEntries;            \
 friend class ciSpeculativeTrapData;    \
