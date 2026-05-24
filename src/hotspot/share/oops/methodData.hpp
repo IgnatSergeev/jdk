@@ -973,6 +973,15 @@ private:
     return _pd->intptr_at(_offset + index);
   }
 
+protected:
+  intptr_t data() const {
+    return intptr_at(method_data_entry);
+  }
+
+  void set_data(intptr_t data) {
+    set_intptr_at(method_data_entry, data);
+  }
+
 public:
   MethodDataEntry(int offset)
     : _pd(nullptr), _offset(offset) {}
@@ -982,12 +991,12 @@ public:
   }
 
   MethodData* method_data() const {
-    return (MethodData*)intptr_at(method_data_entry);
+    return (MethodData*)data();
   }
 
   bool set_method_data(MethodData* md) {
     if (md == nullptr) {
-      set_intptr_at(method_data_entry, (intptr_t)md);
+      set_data((intptr_t)md);
       return true;
     }
     MethodData** m = (MethodData**)intptr_at_adr(method_data_entry);
@@ -2290,8 +2299,6 @@ private:
   // data index of exception handler profiling data
   int _exception_handler_data_di;
 
-  bool _is_specialized;
-
   // Beginning of the data entries
   // See comment in ciMethodData::load_data
   intptr_t _data[1];
@@ -2705,9 +2712,6 @@ public:
   void clean_weak_method_links();
   Mutex* extra_data_lock();
   void check_extra_data_locked() const NOT_DEBUG_RETURN;
-
-  bool is_specialized() const { return _is_specialized; }
-  void mark_as_specialized() { _is_specialized = true; }
 
   void free_specialized_method_datas(ClassLoaderData* loader_data);
 };

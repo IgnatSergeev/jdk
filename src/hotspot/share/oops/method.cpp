@@ -694,7 +694,7 @@ MethodData* Method::create_profiling_method_data(const methodHandle& method, TRA
 
 // Build a MethodData* object to hold profiling information collected on this
 // method on specific call when requested.
-void Method::build_specialized_profiling_method_data(const methodHandle& method, CallData* call, TRAPS) {
+void Method::build_specialized_profiling_method_data(const methodHandle& method, MethodDataEntry* md_entry, TRAPS) {
   MethodData* method_data = Method::create_profiling_method_data(method, THREAD);
 
   // Do not profile the method if metaspace has hit an OOM
@@ -702,7 +702,7 @@ void Method::build_specialized_profiling_method_data(const methodHandle& method,
     return;   // return the exception (which is cleared)
   }
 
-  if (!call->set_specialized_data(method_data)) {
+  if (!md_entry->set_method_data(method_data)) {
     MetadataFactory::free_metadata(method->method_holder()->class_loader_data(), method_data);
     return;
   }

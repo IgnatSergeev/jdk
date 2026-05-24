@@ -30,6 +30,7 @@
 #include "oops/annotations.hpp"
 #include "oops/constantPool.hpp"
 #include "oops/instanceKlass.hpp"
+#include "oops/methodData.hpp"
 #include "oops/methodFlags.hpp"
 #include "oops/oop.hpp"
 #include "utilities/accessFlags.hpp"
@@ -352,7 +353,7 @@ private:
 
 public:
   static void build_profiling_method_data(const methodHandle& method, TRAPS);
-  static void build_specialized_profiling_method_data(const methodHandle& method, CallData* call, TRAPS);
+  static void build_specialized_profiling_method_data(const methodHandle& method, MethodDataEntry* md_entry, TRAPS);
   static bool install_training_method_data(const methodHandle& method);
   static MethodCounters* build_method_counters(Thread* current, Method* m);
 

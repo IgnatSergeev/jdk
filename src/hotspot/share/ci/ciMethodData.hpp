@@ -142,6 +142,19 @@ public:
 #endif
 };
 
+class ciMethodDataEntry : public MethodDataEntry {
+public:
+  void translate_method_data_from(const MethodDataEntry* md);
+
+  ciMethodData* method_data() const {
+    return (ciMethodData*)data();
+  }
+
+#ifndef PRODUCT
+  void print_data_on(outputStream* st) const;
+#endif
+};
+
 class ciCallData : public CallData {
 public:
   ciCallData(DataLayout* layout) : CallData(layout) {}

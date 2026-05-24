@@ -30,6 +30,7 @@
 #include "memory/allocation.inline.hpp"
 #include "memory/resourceArea.hpp"
 #include "oops/klass.inline.hpp"
+#include "oops/methodData.hpp"
 #include "oops/methodData.inline.hpp"
 #include "oops/trainingData.hpp"
 #include "runtime/deoptimization.hpp"
@@ -347,6 +348,17 @@ void ciReturnTypeEntry::translate_type_data_from(const ReturnTypeEntry* ret) {
   } else {
     set_type(translate_klass(k));
   }
+}
+
+void ciMethodDataEntry::translate_method_data_from(const MethodDataEntry* entry) {
+  MethodData* mdo = entry->method_data();
+  ciMethodData* md;
+  if (mdo != nullptr) {
+    md = CURRENT_ENV->get_method_data(mdo);
+  } else {
+    md = CURRENT_ENV->get_empty_methodData();
+  }
+  set_data((intptr_t)md);
 }
 
 void ciSpeculativeTrapData::translate_from(const ProfileData* data) {
