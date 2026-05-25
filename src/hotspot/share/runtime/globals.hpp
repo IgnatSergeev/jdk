@@ -1194,6 +1194,8 @@ const int ObjectAlignmentInBytes = 8;
                                                                             \
   product(bool, PrintMethodData, false, DIAGNOSTIC,                         \
           "Print the results of +ProfileInterpreter at end of run")         \
+  product(bool, SpecializedMethodData, false, DIAGNOSTIC,                   \
+          "Enables use of specialized method data")         \
                                                                             \
   develop(bool, VerifyDataPointer, trueInDebug,                             \
           "Verify the method data pointer during interpreter profiling")    \
@@ -2004,7 +2006,6 @@ const int ObjectAlignmentInBytes = 8;
   develop(uint, BinarySearchThreshold, 16,                                  \
           "Minimal number of elements in a sorted collection to prefer"     \
           "binary search over simple linear search." )                      \
-                                                                            \
 
 // end of RUNTIME_FLAGS
 

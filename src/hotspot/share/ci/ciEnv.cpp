@@ -28,10 +28,12 @@
 #include "ci/ciInstance.hpp"
 #include "ci/ciInstanceKlass.hpp"
 #include "ci/ciMethod.hpp"
+#include "ci/ciMethodData.hpp"
 #include "ci/ciNullObject.hpp"
 #include "ci/ciReplay.hpp"
 #include "ci/ciSymbols.hpp"
 #include "ci/ciUtilities.inline.hpp"
+#include "classfile/classLoaderDataGraph.hpp"
 #include "classfile/javaClasses.hpp"
 #include "classfile/javaClasses.inline.hpp"
 #include "classfile/systemDictionary.hpp"
@@ -1699,4 +1701,143 @@ void ciEnv::dump_inline_data(int compile_id) {
 
 void ciEnv::dump_replay_data_version(outputStream* out) {
   out->print_cr("version %d", REPLAY_VERSION);
+}
+
+MethodData* ciEnv::build_specialized_profiling_method_data(ciMethod* method, const methodHandle& h_m, TRAPS) {
+  // Do not profile the method if metaspace has hit an OOM previously
+  // allocating profiling data. Callers clear pending exception so don't
+  // add one here.
+  if (ClassLoaderDataGraph::has_metaspace_oom()) {
+    return nullptr;
+  }
+
+  ClassLoaderData* loader_data = h_m->method_holder()->class_loader_data();
+  MethodData* method_data = MethodData::allocate(loader_data, h_m, THREAD);
+  if (HAS_PENDING_EXCEPTION) {
+    CompileBroker::log_metaspace_failure();
+    ClassLoaderDataGraph::set_metaspace_oom(true);
+    return nullptr;   // return the exception (which is cleared)
+  }
+
+  if (PrintMethodData && (Verbose || WizardMode)) {
+    ResourceMark rm(THREAD);
+    tty->print("build_specialized_profiling_method_data for ");
+    method->print_name(tty);
+    tty->cr();
+    // At the end of the run, the MDO, full of data, will be dumped.
+  }
+
+  return method_data;
+}
+
+ciMethodData* ciEnv::specialized_method_data_or_null(ciMethodData* caller_md, int bci) {
+  if (caller_md == nullptr) {
+    return nullptr;
+  }
+
+  ciProfileData* data = caller_md->bci_to_data(bci);
+  if (data == nullptr || !data->is_CallData()) {
+    return nullptr;
+  }
+
+  ciMethodData* md = nullptr;
+  GUARDED_VM_ENTRY({
+    md = get_method_data(data->as_CallData()->specialized_data());
+  });
+  return md;
+}
+
+Pair<ciMethodData*, bool> ciEnv::ensure_specialized_method_data(ciMethod* callee, ciMethodData* caller_md, int bci) {
+  if (!SpecializedMethodData) {
+    return { callee->method_data(), true };
+  }
+  assert(callee != nullptr, "callee should not be null");
+  assert(caller_md != nullptr, "caller method data should not be null");
+  assert(caller_md->bci_to_data(bci) != nullptr, "should be profile data");
+  assert(caller_md->bci_to_data(bci)->is_CallData(), "should be call data");
+
+  methodHandle mh(Thread::current(), callee->get_Method());
+  if (callee->is_native() || callee->is_abstract() || mh()->is_accessor()) {
+    ciMethodData* md = nullptr;
+    GUARDED_VM_ENTRY({
+      md = get_empty_methodData();
+    });
+    return { md, true };
+  }
+
+  ciMethodData* md = specialized_method_data_or_null(caller_md, bci);
+  if (md != nullptr) {
+    bool result = false;
+    GUARDED_VM_ENTRY({
+      result = md->load_data();
+    });
+    return { md, result };
+  }
+
+  MethodData* new_specialized_mdo = nullptr;
+  bool result = false;
+  GUARDED_VM_ENTRY({
+    EXCEPTION_CONTEXT;
+    methodHandle mh(Thread::current(), callee->get_Method());
+
+    new_specialized_mdo = build_specialized_profiling_method_data(callee, mh, THREAD);
+    if (HAS_PENDING_EXCEPTION) {
+      CLEAR_PENDING_EXCEPTION;
+    }
+
+    if (new_specialized_mdo != nullptr) {
+      new_specialized_mdo->mark_as_specialized();
+      md = get_method_data(new_specialized_mdo);
+      result = md->load_data();
+    } else {
+      md = get_empty_methodData();
+      result = false;
+    }
+  });
+
+  if (new_specialized_mdo != nullptr) {
+    MethodData* caller_mdo = (MethodData*)(caller_md->constant_encoding());
+    MutexLocker ml(caller_mdo->extra_data_lock(), Mutex::_no_safepoint_check_flag);
+    caller_mdo->bci_to_data(bci)->as_CallData()->set_specialized_data(new_specialized_mdo);
+    caller_md->bci_to_data(bci)->as_CallData()->set_specialized_data(new_specialized_mdo);
+  }
+
+  return { md, result };
+}
+
+ciMethodData* ciEnv::specialized_method_data(ciMethod* callee, JVMState* caller) {
+  assert(callee != nullptr, "callee should not be null");
+
+  if (!SpecializedMethodData) {
+    return callee->method_data();
+  }
+
+  if (caller == nullptr || !caller->has_method()) {
+    return callee->method_data();
+  }
+
+  GrowableArray<Pair<ciMethod*, int>> call_sites(caller->depth());
+  for (JVMState* jvms = caller; jvms != nullptr && jvms->has_method(); jvms = jvms->caller()) {
+    call_sites.append({jvms->method(), jvms->bci()});
+  }
+
+  for (int spec_depth = call_sites.length(); spec_depth > 0; spec_depth--) {
+    ciMethodData* md = call_sites.at(spec_depth - 1).first->method_data();
+    for (int i = spec_depth - 2; i >= 0; i--) {
+      md = specialized_method_data_or_null(md, call_sites.at(i + 1).second);
+    }
+    md = specialized_method_data_or_null(md, call_sites.at(0).second);
+
+    if (md != nullptr) {
+      GUARDED_VM_ENTRY({
+        md->load_data();
+      });
+
+      if (md->is_mature()) {
+        return md;
+      }
+    }
+  }
+
+  return callee->method_data();
 }

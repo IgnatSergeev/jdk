@@ -1100,6 +1100,7 @@ void GraphBuilder::store_indexed(BasicType type) {
 
     if (profile_checkcasts()) {
       result->set_profiled_method(method());
+      result->set_md(method_data());
       result->set_profiled_bci(bci());
       result->set_should_profile(true);
     }
@@ -1280,6 +1281,7 @@ void GraphBuilder::_goto(int from_bci, int to_bci) {
     x->set_profiled_bci(bci());
     if (profile_branches()) {
       x->set_profiled_method(method());
+      x->set_md(method_data());
       x->set_should_profile(true);
     }
   }
@@ -1310,6 +1312,7 @@ void GraphBuilder::if_node(Value x, If::Condition cond, Value y, ValueStack* sta
       if (profile_branches()) {
         // Successors can be rotated by the canonicalizer, check for this case.
         if_node->set_profiled_method(method());
+        if_node->set_md(method_data());
         if_node->set_should_profile(true);
         if (if_node->tsux() == fsux) {
           if_node->set_swapped(true);
@@ -1325,6 +1328,7 @@ void GraphBuilder::if_node(Value x, If::Condition cond, Value y, ValueStack* sta
       goto_node->set_profiled_bci(bci());
       if (profile_branches()) {
         goto_node->set_profiled_method(method());
+        goto_node->set_md(method_data());
         goto_node->set_should_profile(true);
         // Find out which successor is used.
         if (goto_node->default_sux() == tsux) {
@@ -1635,7 +1639,8 @@ void GraphBuilder::method_return(Value x, bool ignore_return) {
       }
       if (profile_return() && x->type()->is_object_kind()) {
         ciMethod* caller = state()->scope()->method();
-        profile_return_type(x, method(), caller, invoke_bci);
+        ciMethodData* caller_data = state()->scope()->method_data();
+        profile_return_type(x, method(), caller, caller_data, invoke_bci);
       }
     }
     Goto* goto_callee = new Goto(continuation(), false);
@@ -1859,23 +1864,23 @@ Dependencies* GraphBuilder::dependency_recorder() const {
 }
 
 // How many arguments do we want to profile?
-Values* GraphBuilder::args_list_for_profiling(ciMethod* target, int& start, bool may_have_receiver) {
+Values* GraphBuilder::args_list_for_profiling(ciMethod* target, ciMethodData* target_md, int& start, bool may_have_receiver) {
   int n = 0;
   bool has_receiver = may_have_receiver && Bytecodes::has_receiver(method()->java_code_at_bci(bci()));
   start = has_receiver ? 1 : 0;
   if (profile_arguments()) {
-    ciProfileData* data = method()->method_data()->bci_to_data(bci());
+    ciProfileData* data = method_data()->bci_to_data(bci());
     if (data != nullptr && (data->is_CallTypeData() || data->is_VirtualCallTypeData())) {
       n = data->is_CallTypeData() ? data->as_CallTypeData()->number_of_arguments() : data->as_VirtualCallTypeData()->number_of_arguments();
     }
   }
   // If we are inlining then we need to collect arguments to profile parameters for the target
   if (profile_parameters() && target != nullptr) {
-    if (target->method_data() != nullptr && target->method_data()->parameters_type_data() != nullptr) {
+    if (target_md != nullptr && target_md->parameters_type_data() != nullptr) {
       // The receiver is profiled on method entry so it's included in
       // the number of parameters but here we're only interested in
       // actual arguments.
-      n = MAX2(n, target->method_data()->parameters_type_data()->number_of_parameters() - start);
+      n = MAX2(n, target_md->parameters_type_data()->number_of_parameters() - start);
     }
   }
   if (n > 0) {
@@ -1894,9 +1899,9 @@ void GraphBuilder::check_args_for_profiling(Values* obj_args, int expected) {
 }
 
 // Collect arguments that we want to profile in a list
-Values* GraphBuilder::collect_args_for_profiling(Values* args, ciMethod* target, bool may_have_receiver) {
+Values* GraphBuilder::collect_args_for_profiling(Values* args, ciMethod* target, ciMethodData* target_md, bool may_have_receiver) {
   int start = 0;
-  Values* obj_args = args_list_for_profiling(target, start, may_have_receiver);
+  Values* obj_args = args_list_for_profiling(target, target_md, start, may_have_receiver);
   if (obj_args == nullptr) {
     return nullptr;
   }
@@ -2126,8 +2131,8 @@ void GraphBuilder::invoke(Bytecodes::Code code) {
       // static binding => check if callee is ok
       ciMethod* inline_target = (cha_monomorphic_target != nullptr) ? cha_monomorphic_target : target;
       bool holder_known = (cha_monomorphic_target != nullptr) || (exact_target != nullptr);
+      inline_target->get_Method()->increment_inline_attempts();
       bool success = try_inline(inline_target, holder_known, false /* ignore_return */, code, better_receiver);
-
       CHECK_BAILOUT();
       clear_inline_bailout();
 
@@ -2203,7 +2208,7 @@ void GraphBuilder::invoke(Bytecodes::Code code) {
         } else if (exact_target != nullptr) {
           target_klass = exact_target->holder();
         }
-        profile_call(target, recv, target_klass, collect_args_for_profiling(args, nullptr, false), false);
+        profile_call(target, nullptr, recv, target_klass, collect_args_for_profiling(args, nullptr, nullptr, false), false);
       }
     }
   }
@@ -2275,6 +2280,7 @@ void GraphBuilder::check_cast(int klass_index) {
 
     if (profile_checkcasts()) {
       c->set_profiled_method(method());
+      c->set_md(method_data());
       c->set_profiled_bci(bci());
       c->set_should_profile(true);
     }
@@ -2295,6 +2301,7 @@ void GraphBuilder::instance_of(int klass_index) {
 
     if (profile_checkcasts()) {
       i->set_profiled_method(method());
+      i->set_md(method_data());
       i->set_profiled_bci(bci());
       i->set_should_profile(true);
     }
@@ -3271,7 +3278,6 @@ GraphBuilder::GraphBuilder(Compilation* compilation, IRScope* scope)
   , _osr_entry(nullptr)
 {
   int osr_bci = compilation->osr_bci();
-
   // determine entry points and bci2block mapping
   BlockListBuilder blm(compilation, scope, osr_bci);
   CHECK_BAILOUT();
@@ -3331,7 +3337,7 @@ GraphBuilder::GraphBuilder(Compilation* compilation, IRScope* scope)
       }
 
       // Emit the intrinsic node.
-      bool result = try_inline_intrinsics(scope->method());
+      bool result = try_inline_intrinsics(scope->method(), scope->method_data());
       if (!result) BAILOUT("failed to inline intrinsic");
       method_return(dpop());
 
@@ -3374,7 +3380,7 @@ GraphBuilder::GraphBuilder(Compilation* compilation, IRScope* scope)
         load_local(objectType, 0);
 
         // Emit the intrinsic node.
-        bool result = try_inline_intrinsics(scope->method());
+        bool result = try_inline_intrinsics(scope->method(), scope->method_data());
         if (!result) BAILOUT("failed to inline intrinsic");
         method_return(apop());
 
@@ -3392,7 +3398,6 @@ GraphBuilder::GraphBuilder(Compilation* compilation, IRScope* scope)
     break;
   }
   CHECK_BAILOUT();
-
 # ifdef ASSERT
   // For all blocks reachable from start_block: _end must be non-null
   {
@@ -3515,12 +3520,21 @@ bool GraphBuilder::try_inline(ciMethod* callee, bool holder_known, bool ignore_r
   // handle intrinsics
   if (callee->intrinsic_id() != vmIntrinsics::_none &&
       callee->check_intrinsic_candidate()) {
-    if (try_inline_intrinsics(callee, ignore_return)) {
+    ciMethodData* md = callee->method_data();
+    if (method_data() != nullptr && callee->holder()->is_linked()) {
+      Pair<ciMethodData*, bool> ensured_md =
+        compilation()->env()->ensure_specialized_method_data(callee, method_data(), bci());
+      if (!ensured_md.second) {
+        INLINE_BAILOUT("mdo allocation failed");
+      }
+      md = ensured_md.first;
+    }
+
+    if (try_inline_intrinsics(callee, md, ignore_return)) {
       print_inlining(callee, "intrinsic");
       set_flags_for_inlined_callee(compilation(), callee);
       return true;
     }
-    // try normal inlining
   }
 
   // certain methods cannot be parsed at all
@@ -3563,7 +3577,7 @@ const char* GraphBuilder::should_not_inline(ciMethod* callee) const {
   return nullptr;
 }
 
-void GraphBuilder::build_graph_for_intrinsic(ciMethod* callee, bool ignore_return) {
+void GraphBuilder::build_graph_for_intrinsic(ciMethod* callee, ciMethodData* callee_md, bool ignore_return) {
   vmIntrinsics::ID id = callee->intrinsic_id();
   assert(id != vmIntrinsics::_none, "must be a VM intrinsic");
 
@@ -3650,7 +3664,7 @@ void GraphBuilder::build_graph_for_intrinsic(ciMethod* callee, bool ignore_retur
           recv = args->at(0);
           null_check(recv);
         }
-        profile_call(callee, recv, nullptr, collect_args_for_profiling(args, callee, true), true);
+        profile_call(callee, callee_md, recv, nullptr, collect_args_for_profiling(args, callee, callee_md, true), true);
       }
     }
   }
@@ -3670,7 +3684,7 @@ void GraphBuilder::build_graph_for_intrinsic(ciMethod* callee, bool ignore_retur
   }
 }
 
-bool GraphBuilder::try_inline_intrinsics(ciMethod* callee, bool ignore_return) {
+bool GraphBuilder::try_inline_intrinsics(ciMethod* callee, ciMethodData* callee_md, bool ignore_return) {
   // For calling is_intrinsic_available we need to transition to
   // the '_thread_in_vm' state because is_intrinsic_available()
   // accesses critical VM-internal data.
@@ -3690,7 +3704,7 @@ bool GraphBuilder::try_inline_intrinsics(ciMethod* callee, bool ignore_return) {
       return false;
     }
   }
-  build_graph_for_intrinsic(callee, ignore_return);
+  build_graph_for_intrinsic(callee, callee_md, ignore_return);
   if (_inline_bailout_msg != nullptr) {
     return false;
   }
@@ -3948,6 +3962,16 @@ bool GraphBuilder::try_inline_full(ciMethod* callee, bool holder_known, bool ign
     null_check(recv);
   }
 
+  ciMethodData* md = callee->method_data();
+  if (is_profiling() && method_data() != nullptr) {
+    Pair<ciMethodData*, bool> ensured_md =
+      compilation()->env()->ensure_specialized_method_data(callee, method_data(), bci());
+    if (!ensured_md.second) {
+      INLINE_BAILOUT("mdo allocation failed");
+    }
+    md = ensured_md.first;
+  }
+
   if (is_profiling()) {
     // Note that we'd collect profile data in this method if we wanted it.
     // this may be redundant here...
@@ -3955,7 +3979,7 @@ bool GraphBuilder::try_inline_full(ciMethod* callee, bool holder_known, bool ign
 
     if (profile_calls()) {
       int start = 0;
-      Values* obj_args = args_list_for_profiling(callee, start, has_receiver);
+      Values* obj_args = args_list_for_profiling(callee, md, start, has_receiver);
       if (obj_args != nullptr) {
         int s = obj_args->capacity();
         // if called through method handle invoke, some arguments may have been popped
@@ -3968,7 +3992,7 @@ bool GraphBuilder::try_inline_full(ciMethod* callee, bool holder_known, bool ign
         }
         check_args_for_profiling(obj_args, s);
       }
-      profile_call(callee, recv, holder_known ? callee->holder() : nullptr, obj_args, true);
+      profile_call(callee, md, recv, holder_known ? callee->holder() : nullptr, obj_args, true);
     }
   }
 
@@ -3995,7 +4019,7 @@ bool GraphBuilder::try_inline_full(ciMethod* callee, bool holder_known, bool ign
   int continuation_preds = cont->number_of_preds();
 
   // Push callee scope
-  push_scope(callee, cont);
+  push_scope(callee, md, cont);
 
   // the BlockListBuilder for the callee could have bailed out
   if (bailed_out())
@@ -4122,6 +4146,7 @@ bool GraphBuilder::try_inline_full(ciMethod* callee, bool holder_known, bool ign
   } else {
     pop_scope();
   }
+  //TODO: replace for real mdo in wrapper
 
   compilation()->notice_inlined_method(callee);
 
@@ -4264,11 +4289,10 @@ void GraphBuilder::push_root_scope(IRScope* scope, BlockList* bci2block, BlockBe
   _block = start;
 }
 
-
-void GraphBuilder::push_scope(ciMethod* callee, BlockBegin* continuation) {
-  IRScope* callee_scope = new IRScope(compilation(), scope(), bci(), callee, -1, false);
+void GraphBuilder::push_scope(ciMethod* callee, ciMethodData* method_data, BlockBegin* continuation) {
+  IRScope* callee_scope = new IRScope(compilation(), scope(), bci(), callee, method_data, -1, false);
   scope()->add_callee(callee_scope);
-
+  callee->get_Method()->increment_inline_counter();
   BlockListBuilder blb(compilation(), callee_scope, -1);
   CHECK_BAILOUT();
 
@@ -4279,7 +4303,6 @@ void GraphBuilder::push_scope(ciMethod* callee, BlockBegin* continuation) {
   }
 
   set_state(new ValueStack(callee_scope, state()->copy(ValueStack::CallerState, bci())));
-
   ScopeData* data = new ScopeData(scope_data());
   data->set_scope(callee_scope);
   data->set_bci2block(blb.bci2block());
@@ -4496,7 +4519,7 @@ void GraphBuilder::print_stats() {
 }
 #endif // PRODUCT
 
-void GraphBuilder::profile_call(ciMethod* callee, Value recv, ciKlass* known_holder, Values* obj_args, bool inlined) {
+void GraphBuilder::profile_call(ciMethod* callee, ciMethodData* callee_method_data, Value recv, ciKlass* known_holder, Values* obj_args, bool inlined) {
   assert(known_holder == nullptr || (known_holder->is_instance_klass() &&
                                   (!known_holder->is_interface() ||
                                    ((ciInstanceKlass*)known_holder)->has_nonstatic_concrete_methods())), "should be non-static concrete method");
@@ -4506,23 +4529,26 @@ void GraphBuilder::profile_call(ciMethod* callee, Value recv, ciKlass* known_hol
     }
   }
 
-  append(new ProfileCall(method(), bci(), callee, recv, known_holder, obj_args, inlined));
+  // if calee md is nul mb method_data_or_null
+  append(new ProfileCall(method(), bci(), method_data(), callee, callee_method_data, recv, known_holder, obj_args, inlined));
 }
 
-void GraphBuilder::profile_return_type(Value ret, ciMethod* callee, ciMethod* m, int invoke_bci) {
-  assert((m == nullptr) == (invoke_bci < 0), "invalid method and invalid bci together");
+void GraphBuilder::profile_return_type(Value ret, ciMethod* callee, ciMethod* m, ciMethodData* md, int invoke_bci) {
+  assert(((m == nullptr) == (md == nullptr)) && ((md == nullptr) == (invoke_bci < 0)), "invalid method, method data and bci together");
   if (m == nullptr) {
     m = method();
+  }
+  if (md == nullptr) {
+    md = method_data();
   }
   if (invoke_bci < 0) {
     invoke_bci = bci();
   }
-  ciMethodData* md = m->method_data_or_null();
   ciProfileData* data = md->bci_to_data(invoke_bci);
   if (data != nullptr && (data->is_CallTypeData() || data->is_VirtualCallTypeData())) {
     bool has_return = data->is_CallTypeData() ? ((ciCallTypeData*)data)->has_return() : ((ciVirtualCallTypeData*)data)->has_return();
     if (has_return) {
-      append(new ProfileReturnType(m , invoke_bci, callee, ret));
+      append(new ProfileReturnType(m, md, invoke_bci, callee, ret));
     }
   }
 }

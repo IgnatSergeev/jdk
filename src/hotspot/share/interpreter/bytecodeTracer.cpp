@@ -78,7 +78,7 @@ class BytecodePrinter {
   void      print_field_or_method(int cp_index, outputStream* st);
   void      print_dynamic(int cp_index, outputStream* st);
   void      print_attributes(int bci, outputStream* st);
-  void      bytecode_epilog(int bci, outputStream* st);
+  void      bytecode_epilog(int bci, MethodData* mdo, outputStream* st);
 
  public:
   BytecodePrinter(int flags = 0) : _is_wide(false), _code(Bytecodes::_illegal), _flags(flags) {}
@@ -148,7 +148,7 @@ class BytecodePrinter {
 
   // Used for Method::print_codes().  The input bcp comes from
   // BytecodeStream, which will skip wide bytecodes.
-  void trace(const methodHandle& method, address bcp, outputStream* st) {
+  void trace(const methodHandle& method, MethodData* mdo, address bcp, outputStream* st, int flags) {
     _current_method = method();
     _is_linked = method->method_holder()->is_linked();
     ResourceMark rm;
@@ -171,7 +171,31 @@ class BytecodePrinter {
     }
     _next_pc = is_wide() ? bcp+2 : bcp+1;
     print_attributes(bci, st);
-    bytecode_epilog(bci, st);
+    bytecode_epilog(bci, mdo, st);
+    if (mdo != nullptr) {
+      ProfileData* data = mdo->first_data();
+      while (data != nullptr) {
+        if (data->bci() == bci && data->is_CallData()) {
+          break;
+        }
+        data = mdo->next_data(data);
+      }
+
+      if (data != nullptr) {
+        assert(data->is_CallData(), "sanity");
+        MethodData* specialized = data->as_CallData()->specialized_data();
+
+        if (specialized != nullptr) {
+          Thread *thread = Thread::current();
+          ResourceMark rm(thread);
+          methodHandle mh(thread, specialized->method());
+          StreamIndentor si(st, 4);
+          st->print_cr("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
+          BytecodeTracer::print_method_codes(mh, specialized, 0, mh->code_size(), st, flags);
+          st->print_cr(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+        }
+      }
+    }
   }
 };
 
@@ -193,17 +217,21 @@ void BytecodeTracer::trace_interpreter(const methodHandle& method, address bcp, 
 #endif
 
 void BytecodeTracer::print_method_codes(const methodHandle& method, int from, int to, outputStream* st, int flags) {
+  // Keep output to st coherent: collect all lines and print at once.
+  ResourceMark rm;
+  stringStream ss;
+  print_method_codes(method, method->method_data(), from, to, &ss, flags);
+  st->print("%s", ss.as_string());
+}
+
+void BytecodeTracer::print_method_codes(const methodHandle& method, MethodData* mdo, int from, int to, outputStream* st, int flags) {
   BytecodePrinter method_printer(flags);
   BytecodeStream s(method);
   s.set_interval(from, to);
 
-  // Keep output to st coherent: collect all lines and print at once.
-  ResourceMark rm;
-  stringStream ss;
   while (s.next() >= 0) {
-    method_printer.trace(method, s.bcp(), &ss);
+    method_printer.trace(method, mdo, s.bcp(), st, flags);
   }
-  st->print("%s", ss.as_string());
 }
 
 void BytecodePrinter::print_constant(int cp_index, outputStream* st) {
@@ -594,8 +622,7 @@ void BytecodePrinter::print_attributes(int bci, outputStream* st) {
 }
 
 
-void BytecodePrinter::bytecode_epilog(int bci, outputStream* st) {
-  MethodData* mdo = method()->method_data();
+void BytecodePrinter::bytecode_epilog(int bci, MethodData* mdo, outputStream* st) {
   if (mdo != nullptr) {
 
     // Lock to read ProfileData, and ensure lock is not broken by a safepoint

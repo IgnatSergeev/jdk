@@ -36,9 +36,11 @@
 #include "compiler/compilerThread.hpp"
 #include "oops/methodData.hpp"
 #include "runtime/javaThread.hpp"
+#include "utilities/pair.hpp"
 
 class CompileTask;
 class OopMapSet;
+class JVMState;
 
 // ciEnv
 //
@@ -50,6 +52,7 @@ class ciEnv : StackObj {
   friend class Dependencies;  // for get_object, during logging
   friend class RecordLocation;
   friend class PrepareExtraDataClosure;
+  friend class GraphBuilder;
 
 private:
   Arena*           _arena;       // Alias for _ciEnv_arena except in init_shared_objects()
@@ -512,6 +515,22 @@ public:
   void process_invokedynamic(const constantPoolHandle &cp, int index, JavaThread* thread);
   void process_invokehandle(const constantPoolHandle &cp, int index, JavaThread* thread);
   void find_dynamic_call_sites();
+
+private:
+  // Creates mdo for specialized method
+  MethodData* build_specialized_profiling_method_data(ciMethod* method, const methodHandle& h_m, TRAPS);
+
+  // Searches for existing callee`s specialized method data, if none found returns null
+  ciMethodData* specialized_method_data_or_null(ciMethodData* caller_md, int bci);
+
+public:
+  // Creates or returns existing callee`s specialized method data
+  // Loads method data in process
+  Pair<ciMethodData*, bool> ensure_specialized_method_data(ciMethod* callee, ciMethodData* caller_md, int bci);
+
+  // Returns existing callee`s specialized method data or fallbacks to its md
+  // Loads method data in process
+  ciMethodData* specialized_method_data(ciMethod* callee, JVMState* caller);
 };
 
 #endif // SHARE_CI_CIENV_HPP
