@@ -150,6 +150,8 @@ public:
     return (ciMethodData*)data();
   }
 
+  bool load_required() const;
+
 #ifndef PRODUCT
   void print_data_on(outputStream* st) const;
 #endif
@@ -159,18 +161,18 @@ class ciCallData : public CallData {
 public:
   ciCallData(DataLayout* layout) : CallData(layout) {}
 
+  ciMethodDataEntry* callee_md() const { return (ciMethodDataEntry*)CallData::callee_md(); }
+
   virtual void translate_from(const ProfileData* data) {
     translate_call_data_from(data);
   }
-  void translate_call_data_from(const ProfileData* data);
-
-  ciMethodData* method_data() const {
-    return (ciMethodData*)intptr_at(specialized_method_data);
+  void translate_call_data_from(const ProfileData* data) {
+    callee_md()->translate_method_data_from(data->as_CallData()->callee_md());
   }
 
-  void set_method_data(ciMethodData* md) {
-    set_intptr_at(specialized_method_data, (intptr_t)md);
-  }
+#ifndef PRODUCT
+  void print_data_on(outputStream* st, const char* extra = nullptr) const;
+#endif
 };
 
 class ciCallTypeData : public CallTypeData {
@@ -179,14 +181,6 @@ class ciCallTypeData : public CallTypeData {
 
 public:
   ciCallTypeData(DataLayout* layout) : CallTypeData(layout) {}
-
-  ciMethodData* method_data() const {
-    return rtd_super()->method_data();
-  }
-
-  void set_method_data(ciMethodData* md) {
-    rtd_super()->set_method_data(md);
-  }
 
   ciTypeStackSlotEntries* args() const { return (ciTypeStackSlotEntries*)CallTypeData::args(); }
   ciReturnTypeEntry* ret() const { return (ciReturnTypeEntry*)CallTypeData::ret(); }
@@ -235,19 +229,8 @@ public:
 };
 
 class ciReceiverTypeData : public ReceiverTypeData {
-  // Fake multiple inheritance...  It's a ciCallData also.
-  ciCallData* rtd_super() const { return (ciCallData*) this; }
-
 public:
   ciReceiverTypeData(DataLayout* layout) : ReceiverTypeData(layout) {};
-
-  void set_method_data(ciMethodData* md) {
-    rtd_super()->set_method_data(md);
-  }
-
-  ciMethodData* method_data() {
-    return rtd_super()->method_data();
-  }
 
   void set_receiver(uint row, ciKlass* recv) {
     assert((uint)row < row_limit(), "oob");
@@ -288,9 +271,16 @@ public:
     return rtd_super()->receiver(row);
   }
 
+  ciMethodDataEntry* callee_md() const { return (ciMethodDataEntry*)VirtualCallData::callee_md(); }
+
   // Copy & translate from oop based VirtualCallData
   virtual void translate_from(const ProfileData* data) {
+    translate_virtual_call_data_from(data);
+  }
+
+  void translate_virtual_call_data_from(const ProfileData* data) {
     rtd_super()->translate_receiver_data_from(data);
+    callee_md()->translate_method_data_from(data->as_VirtualCallData()->callee_md());
   }
 #ifndef PRODUCT
   void print_data_on(outputStream* st, const char* extra = nullptr) const;
@@ -299,8 +289,8 @@ public:
 
 class ciVirtualCallTypeData : public VirtualCallTypeData {
 private:
-  // Fake multiple inheritance...  It's a ciReceiverTypeData also.
-  ciReceiverTypeData* rtd_super() const { return (ciReceiverTypeData*) this; }
+  // Fake multiple inheritance...  It's a ciVirtualCallData also.
+  ciVirtualCallData* rtd_super() const { return (ciVirtualCallData*) this; }
 public:
   ciVirtualCallTypeData(DataLayout* layout) : VirtualCallTypeData(layout) {}
 
@@ -317,7 +307,7 @@ public:
 
   // Copy & translate from oop based VirtualCallData
   virtual void translate_from(const ProfileData* data) {
-    rtd_super()->translate_receiver_data_from(data);
+    rtd_super()->translate_virtual_call_data_from(data);
     if (has_arguments()) {
       args()->translate_type_data_from(data->as_VirtualCallTypeData()->args());
     }
@@ -443,6 +433,9 @@ private:
   // Is data attached?  And is it mature?
   enum { empty_state, immature_state, mature_state };
   u_char _state;
+
+  // Does this snapshot represents mdo at MethodDataEntry
+  bool _specialized;
 
   // Set this true if empty extra_data slots are ever witnessed.
   u_char _saw_free_extra_data;
@@ -580,6 +573,9 @@ public:
   // is not null look for a SpeculativeTrapData if any first.
   ciProfileData* bci_to_data(int bci, ciMethod* m = nullptr);
 
+  // Get the specialized method data entry at an arbitrary bci, or null if there is none.
+  ciMethodDataEntry* bci_to_md_entry(int bci);
+
   ciBitData exception_handler_bci_to_data(int bci);
 
   uint overflow_trap_count() const {
@@ -632,12 +628,11 @@ public:
   int      byte_offset_of_slot(ciProfileData* data, ByteSize slot_offset_in_data) { return in_bytes(offset_of_slot(data, slot_offset_in_data)); }
 
   bool is_specialized() const {
-    MethodData* mdo = get_MethodData();
-    if (mdo != nullptr) {
-      return mdo->is_specialized();
-    }
+    return _specialized;
+  }
 
-    return false;
+  void mark_as_specialized() {
+    _specialized = true;
   }
 
 #ifndef PRODUCT

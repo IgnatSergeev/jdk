@@ -3520,14 +3520,21 @@ bool GraphBuilder::try_inline(ciMethod* callee, bool holder_known, bool ignore_r
   // handle intrinsics
   if (callee->intrinsic_id() != vmIntrinsics::_none &&
       callee->check_intrinsic_candidate()) {
-    ciMethodData* md = callee->method_data();
-    if (method_data() != nullptr && callee->holder()->is_linked()) {
-      Pair<ciMethodData*, bool> ensured_md =
-        compilation()->env()->ensure_specialized_method_data(callee, method_data(), bci());
-      if (!ensured_md.second) {
+    ciMethodData* md;
+    if (is_profiling() && callee->holder()->is_linked()) {
+      if (method_data() != nullptr) {
+        if (compilation()->env()->ensure_specialized_method_data(callee, method_data(), bci())) {
+          md = compilation()->env()->specialized_method_data(callee, method_data(), bci());
+        }
+      } else {
+        if (callee->ensure_method_data()) {
+          md = callee->method_data();
+        }
+      }
+
+      if (md == nullptr) {
         INLINE_BAILOUT("mdo allocation failed");
       }
-      md = ensured_md.first;
     }
 
     if (try_inline_intrinsics(callee, md, ignore_return)) {
@@ -3883,8 +3890,21 @@ bool GraphBuilder::try_inline_full(ciMethod* callee, bool holder_known, bool ign
   // Proper inlining of methods with jsrs requires a little more work.
   if (callee->has_jsrs()                 ) INLINE_BAILOUT("jsrs not handled properly by inliner yet");
 
-  if (is_profiling() && !callee->ensure_method_data()) {
-    INLINE_BAILOUT("mdo allocation failed");
+  ciMethodData* md;
+  if (is_profiling()) {
+    if (method_data() != nullptr) {
+      if (compilation()->env()->ensure_specialized_method_data(callee, method_data(), bci())) {
+        md = compilation()->env()->specialized_method_data(callee, method_data(), bci());
+      }
+    } else {
+      if (callee->ensure_method_data()) {
+        md = callee->method_data();
+      }
+    }
+
+    if (md == nullptr) {
+      INLINE_BAILOUT("mdo allocation failed");
+    }
   }
 
   const bool is_invokedynamic = (bc == Bytecodes::_invokedynamic);
@@ -3960,16 +3980,6 @@ bool GraphBuilder::try_inline_full(ciMethod* callee, bool holder_known, bool ign
     //       an implicit null check since the callee is in a different scope
     //       and we must make sure exception handling does the right thing
     null_check(recv);
-  }
-
-  ciMethodData* md = callee->method_data();
-  if (is_profiling() && method_data() != nullptr) {
-    Pair<ciMethodData*, bool> ensured_md =
-      compilation()->env()->ensure_specialized_method_data(callee, method_data(), bci());
-    if (!ensured_md.second) {
-      INLINE_BAILOUT("mdo allocation failed");
-    }
-    md = ensured_md.first;
   }
 
   if (is_profiling()) {
@@ -4146,7 +4156,6 @@ bool GraphBuilder::try_inline_full(ciMethod* callee, bool holder_known, bool ign
   } else {
     pop_scope();
   }
-  //TODO: replace for real mdo in wrapper
 
   compilation()->notice_inlined_method(callee);
 

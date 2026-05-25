@@ -47,6 +47,7 @@
 #include "memory/resourceArea.hpp"
 #include "oops/generateOopMap.hpp"
 #include "oops/method.inline.hpp"
+#include "oops/methodData.hpp"
 #include "oops/oop.inline.hpp"
 #include "oops/trainingData.hpp"
 #include "prims/methodHandles.hpp"
@@ -1005,7 +1006,7 @@ bool ciMethod::has_member_arg() const {
 // ------------------------------------------------------------------
 // ciMethod::ensure_method_data
 //
-// Generate new MethodData* objects at compile time.
+// Generate new MethodData* objects at compile time for default method profiles.
 // Return true if allocation was successful or no MDO is required.
 bool ciMethod::ensure_method_data(const methodHandle& h_m) {
   EXCEPTION_CONTEXT;
@@ -1027,25 +1028,6 @@ bool ciMethod::ensure_method_data(const methodHandle& h_m) {
   }
 }
 
-bool ciMethod::ensure_specialized_method_data(const methodHandle& h_m, CallData* call) {
-  EXCEPTION_CONTEXT;
-  if (is_native() || is_abstract() || h_m()->is_accessor()) {
-    return true;
-  }
-  if (call->specialized_data() == nullptr) {
-    Method::build_specialized_profiling_method_data(h_m, call, THREAD);
-    if (HAS_PENDING_EXCEPTION) {
-      CLEAR_PENDING_EXCEPTION;
-    }
-  }
-  if (call->specialized_data() != nullptr) {
-    ciMethodData* method_data = CURRENT_ENV->get_method_data(call->specialized_data());
-    return method_data->load_data();
-  } else {
-    return false;
-  }
-}
-
 // public, retroactive version
 bool ciMethod::ensure_method_data() {
   bool result = true;
@@ -1058,29 +1040,49 @@ bool ciMethod::ensure_method_data() {
   return result;
 }
 
+// ------------------------------------------------------------------
+// ciMethod::ensure_specialized_method_data
+//
+// Generate new MethodData* objects at compile time for specialized profiles at MethodDataEntry.
+// Return true if allocation was successful or no MDO is required.
+bool ciMethod::ensure_specialized_method_data(const methodHandle& h_m, ciMethodDataEntry* entry, MethodDataEntry* mdo_entry) {
+  EXCEPTION_CONTEXT;
+  if (is_native() || is_abstract() || h_m()->is_accessor()) {
+    return true;
+  }
+  if (mdo_entry->method_data() == nullptr) {
+    Method::build_specialized_profiling_method_data(h_m, mdo_entry, THREAD);
+    if (HAS_PENDING_EXCEPTION) {
+      CLEAR_PENDING_EXCEPTION;
+    }
+  }
+  if (mdo_entry->method_data() != nullptr) {
+    entry->translate_method_data_from(mdo_entry);
+    return entry->method_data()->load_data();
+  } else {
+    return false;
+  }
+}
+
 // public, retroactive version
 bool ciMethod::ensure_specialized_method_data(ciMethodData* caller_md, int bci) {
   assert(caller_md != nullptr, "caller method data should not be null");
-  assert(caller_md->bci_to_data(bci) != nullptr, "should be profile data");
-  assert(caller_md->bci_to_data(bci)->is_CallData(), "should be call data");
-  CallData* ciCall = caller_md->bci_to_data(bci)->as_CallData();
+  ciMethodDataEntry* entry = caller_md->bci_to_md_entry(bci);
+  assert(entry != nullptr, "missing specialized method data entry at bci");
 
   bool result = true;
-  ciMethodData* method_data;
-  GUARDED_VM_ENTRY({
-    method_data = CURRENT_ENV->get_method_data(ciCall->specialized_data());
-  });
-  if (method_data == nullptr || method_data->is_empty()) {
+  if (entry->method_data()->is_empty()) {
     GUARDED_VM_ENTRY({
-      methodHandle mh(Thread::current(), get_Method());
-      CallData* call;
+      MethodDataEntry* mdo_entry = nullptr;
       {
-        // CallData assures atomic access
         MethodData* caller_mdo = (MethodData*)(caller_md->constant_encoding());
         MutexLocker ml(caller_mdo->extra_data_lock(), Mutex::_no_safepoint_check_flag);
-        call = caller_mdo->bci_to_data(bci)->as_CallData();
+        ProfileData* mdo_data = caller_mdo->bci_to_data(bci);
+        mdo_entry = mdo_data->is_CallData() ? ((CallData*)mdo_data)->updatable_callee_md() : ((VirtualCallData*)mdo_data)->updatable_callee_md();
       }
-      result = ensure_specialized_method_data(mh, call);
+
+      methodHandle mh(Thread::current(), get_Method());
+      result = ensure_specialized_method_data(mh, entry, mdo_entry);
     });
   }
   return result;
@@ -1108,40 +1110,12 @@ ciMethodData* ciMethod::method_data() {
 
 }
 
-ciMethodData* ciMethod::specialized_method_data(ciMethodData* caller_md, int bci) {
-  assert(caller_md != nullptr, "caller method data should not be null");
-  assert(caller_md->bci_to_data(bci) != nullptr, "should be profile data");
-  assert(caller_md->bci_to_data(bci)->is_CallData(), "should be call data");
-  CallData* ciCall = caller_md->bci_to_data(bci)->as_CallData();
-
-  ciMethodData* method_data;
-  GUARDED_VM_ENTRY({
-    method_data = CURRENT_ENV->get_method_data(ciCall->specialized_data());
-  });
-  if (method_data != nullptr && !method_data->is_empty()) {
-    return method_data;
-  }
-
-  CallData* call;
-  {
-    // CallData assures atomic access
-    MethodData* caller_mdo = (MethodData*)(caller_md->constant_encoding());
-    MutexLocker ml(caller_mdo->extra_data_lock(), Mutex::_no_safepoint_check_flag);
-    call = caller_mdo->bci_to_data(bci)->as_CallData();
-  }
-
-  VM_ENTRY_MARK;
-  if (call->specialized_data() != nullptr) {
-    method_data = CURRENT_ENV->get_method_data(call->specialized_data());
-    method_data->load_data();
-  } else {
-    method_data = CURRENT_ENV->get_empty_methodData();
-  }
-  return method_data;
-}
-
-ciMethodData* ciMethod::specialized_method_data_or_null(ciMethodData* caller_md, int bci) {
-  ciMethodData *md = specialized_method_data(caller_md, bci);
+// ------------------------------------------------------------------
+// ciMethod::method_data_or_null
+// Returns a pointer to ciMethodData if MDO exists on the VM side,
+// null otherwise.
+ciMethodData* ciMethod::method_data_or_null() {
+  ciMethodData *md = method_data();
   if (md->is_empty()) {
     return nullptr;
   }
@@ -1149,11 +1123,32 @@ ciMethodData* ciMethod::specialized_method_data_or_null(ciMethodData* caller_md,
 }
 
 // ------------------------------------------------------------------
-// ciMethod::method_data_or_null
-// Returns a pointer to ciMethodData if MDO exists on the VM side,
+// ciMethod::specialized_method_data
+//
+ciMethodData* ciMethod::specialized_method_data(ciMethodData* caller_md, int bci) {
+  assert(caller_md != nullptr, "caller method data should not be null");
+  ciMethodDataEntry* entry = caller_md->bci_to_md_entry(bci);
+  assert(entry != nullptr, "missing specialized method data entry at bci");
+  ciMethodData* md = entry->method_data();
+
+  if (!entry->load_required()) {
+    return md;
+  }
+  VM_ENTRY_MARK;
+  ciEnv* env = CURRENT_ENV;
+  Thread* my_thread = JavaThread::current();
+  methodHandle h_m(my_thread, get_Method());
+
+  md->load_data();
+  return md;
+}
+
+// ------------------------------------------------------------------
+// ciMethod::specialized_method_data_or_null
+// Returns a pointer to ciMethodData if specialized MDO exists on the VM side,
 // null otherwise.
-ciMethodData* ciMethod::method_data_or_null() {
-  ciMethodData *md = method_data();
+ciMethodData* ciMethod::specialized_method_data_or_null(ciMethodData* caller_md, int bci) {
+  ciMethodData *md = specialized_method_data(caller_md, bci);
   if (md->is_empty()) {
     return nullptr;
   }

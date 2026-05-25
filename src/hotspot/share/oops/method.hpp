@@ -30,7 +30,6 @@
 #include "oops/annotations.hpp"
 #include "oops/constantPool.hpp"
 #include "oops/instanceKlass.hpp"
-#include "oops/methodData.hpp"
 #include "oops/methodFlags.hpp"
 #include "oops/oop.hpp"
 #include "utilities/accessFlags.hpp"
@@ -59,7 +58,7 @@ class CheckedExceptionElement;
 class LocalVariableTableElement;
 class AdapterHandlerEntry;
 class MethodData;
-class CallData;
+class MethodDataEntry;
 class MethodCounters;
 class MethodTrainingData;
 class ConstMethod;

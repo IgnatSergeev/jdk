@@ -956,8 +956,6 @@ private:
     md_entry_cell_count
   };
 
-  // ProfileData object this entry is part of
-  ProfileData* _pd;
   // offset within the ProfileData object where the entry is
   const int _offset;
 
@@ -974,6 +972,9 @@ private:
   }
 
 protected:
+  // ProfileData object this entry is part of
+  ProfileData* _pd;
+
   intptr_t data() const {
     return intptr_at(method_data_entry);
   }
@@ -984,7 +985,7 @@ protected:
 
 public:
   MethodDataEntry(int offset)
-    : _pd(nullptr), _offset(offset) {}
+    : _offset(offset), _pd(nullptr) {}
 
   void set_profile_data(ProfileData* pd) {
     _pd = pd;
@@ -995,12 +996,12 @@ public:
   }
 
   bool set_method_data(MethodData* md) {
-    if (md == nullptr) {
-      set_data((intptr_t)md);
-      return true;
-    }
     MethodData** m = (MethodData**)intptr_at_adr(method_data_entry);
     return AtomicAccess::replace_if_null(m, md);
+  }
+
+  void clear_method_data() {
+    set_data((intptr_t)nullptr);
   }
 
   static int static_cell_count() {
@@ -1087,21 +1088,29 @@ public:
 class CallData : public CounterData {
 private:
   // entry for callee`s specialized method data if any
-  MethodDataEntry _callee_specialization;
+  MethodDataEntry _callee_md;
 
 public:
   CallData(DataLayout* layout) :
     CounterData(layout),
-    _callee_specialization(CounterData::static_cell_count())
+    _callee_md(CounterData::static_cell_count())
   {
     assert(layout->tag() == DataLayout::call_type_data_tag ||
            layout->tag() == DataLayout::call_data_tag, "wrong type");
     // Some compilers (VC++) don't want this passed in member initialization list
-    _callee_specialization.set_profile_data(this);
+    _callee_md.set_profile_data(this);
   }
 
-  MethodDataEntry* callee_spec() {
-    return &_callee_specialization;
+  const MethodDataEntry* callee_md() const {
+    return &_callee_md;
+  }
+
+  MethodDataEntry* updatable_callee_md() {
+    return &_callee_md;
+  }
+
+  void clear_method_data() {
+    _callee_md.clear_method_data();
   }
 
   virtual bool is_CallData() const { return true; }
@@ -1114,18 +1123,23 @@ public:
     return static_cell_count();
   }
 
+  // Direct accessors
+  static ByteSize call_data_size() {
+    return cell_offset(static_cell_count());
+  }
+
   // GC support
   virtual void clean_weak_klass_links(bool always_clean) {
-    _callee_specialization.clean_weak_klass_links(always_clean);
+    _callee_md.clean_weak_klass_links(always_clean);
   }
 
   // CDS support
   virtual void metaspace_pointers_do(MetaspaceClosure* it) {
-    _callee_specialization.metaspace_pointers_do(it);
+    _callee_md.metaspace_pointers_do(it);
   }
 
   void print_md_entry_on(outputStream* st) const {
-    _callee_specialization.print_data_on(st);
+    _callee_md.print_data_on(st);
   }
   virtual void print_data_on(outputStream* st, const char* extra = nullptr) const;
 };
@@ -1394,13 +1408,13 @@ public:
 class VirtualCallData : public ReceiverTypeData {
 private:
   // entry for callee`s specialized method data if any
-  MethodDataEntry _callee_specialization;
+  MethodDataEntry _callee_md;
 
 public:
-  VirtualCallData(DataLayout* layout) : ReceiverTypeData(layout), _callee_specialization(ReceiverTypeData::static_cell_count()) {
+  VirtualCallData(DataLayout* layout) : ReceiverTypeData(layout), _callee_md(ReceiverTypeData::static_cell_count()) {
     assert(layout->tag() == DataLayout::virtual_call_data_tag ||
            layout->tag() == DataLayout::virtual_call_type_data_tag, "wrong type");
-    _callee_specialization.set_profile_data(this);
+    _callee_md.set_profile_data(this);
   }
 
   virtual bool is_VirtualCallData() const { return true; }
@@ -1419,8 +1433,16 @@ public:
     return cell_offset(static_cell_count());
   }
 
-  MethodDataEntry* callee_spec() {
-    return &_callee_specialization;
+  const MethodDataEntry* callee_md() const {
+    return &_callee_md;
+  }
+
+  MethodDataEntry* updatable_callee_md() {
+    return &_callee_md;
+  }
+
+  void clear_method_data() {
+    _callee_md.clear_method_data();
   }
 
   // GC support
@@ -1432,7 +1454,7 @@ public:
   void print_method_data_on(outputStream* st) const NOT_JVMCI_RETURN;
 
   void print_md_entry_on(outputStream* st) const {
-    _callee_specialization.print_data_on(st);
+    _callee_md.print_data_on(st);
   }
   void print_data_on(outputStream* st, const char* extra = nullptr) const;
 };

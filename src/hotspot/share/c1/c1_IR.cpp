@@ -139,7 +139,7 @@ IRScope::IRScope(Compilation* compilation, IRScope* caller, int caller_bci, ciMe
   _caller             = caller;
   _level              = caller == nullptr ?  0 : caller->level() + 1;
   _method             = method;
-  _method_data = method_data != nullptr ? method_data : method->method_data_or_null();
+  _method_data = method_data;
   _xhandlers          = new XHandlers(method);
   _number_of_locks    = 0;
   _monitor_pairing_ok = method->has_balanced_monitors();
@@ -269,7 +269,7 @@ IR::IR(Compilation* compilation, ciMethod* method, int osr_bci) :
   _num_loops(0) {
   // setup IR fields
   _compilation = compilation;
-  _top_scope   = new IRScope(compilation, nullptr, -1, method, nullptr, osr_bci, true);
+  _top_scope   = new IRScope(compilation, nullptr, -1, method, method->method_data(), osr_bci, true);
   _code        = nullptr;
 }
 

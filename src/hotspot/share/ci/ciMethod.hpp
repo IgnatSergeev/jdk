@@ -118,7 +118,7 @@ class ciMethod : public ciMetadata {
   void load_code();
 
   bool ensure_method_data(const methodHandle& h_m);
-  bool ensure_specialized_method_data(const methodHandle& h_m, CallData* call);
+  bool ensure_specialized_method_data(const methodHandle& h_m, ciMethodDataEntry* entry, MethodDataEntry* mdo_entry);
 
   void code_at_put(int bci, Bytecodes::Code code) {
     Bytecodes::check(code);
@@ -143,6 +143,8 @@ class ciMethod : public ciMetadata {
   ciInstanceKlass* holder() const                { return _holder; }
   ciMethodData* method_data();
   ciMethodData* method_data_or_null();
+
+  // Specialized md access
   ciMethodData* specialized_method_data(ciMethodData* caller_md, int bci);
   ciMethodData* specialized_method_data_or_null(ciMethodData* caller_md, int bci);
 

@@ -50,6 +50,7 @@ ciMethodData::ciMethodData(MethodData* md)
   // first_di() may be out of bounds if data_size is 0.
   _hint_di(first_di()),
   _state(empty_state),
+  _specialized(false),
   _saw_free_extra_data(false),
   // Initialize the escape information (to "don't know.");
   _eflags(0), _arg_local(0), _arg_stack(0), _arg_returned(0),
@@ -309,7 +310,6 @@ bool ciMethodData::load_data() {
 }
 
 void ciReceiverTypeData::translate_receiver_data_from(const ProfileData* data) {
-  rtd_super()->translate_call_data_from(data);
   for (uint row = 0; row < row_limit(); row++) {
     Klass* k = data->as_ReceiverTypeData()->receiver(row);
     if (k != nullptr && k->class_loader_data() != nullptr && is_klass_loaded(k)) {
@@ -352,13 +352,19 @@ void ciReturnTypeEntry::translate_type_data_from(const ReturnTypeEntry* ret) {
 
 void ciMethodDataEntry::translate_method_data_from(const MethodDataEntry* entry) {
   MethodData* mdo = entry->method_data();
-  ciMethodData* md;
+  ciMethodData* method_data;
   if (mdo != nullptr) {
-    md = CURRENT_ENV->get_method_data(mdo);
+    method_data = CURRENT_ENV->get_method_data(mdo);
   } else {
-    md = CURRENT_ENV->get_empty_methodData();
+    method_data = CURRENT_ENV->get_empty_methodData();
   }
-  set_data((intptr_t)md);
+  method_data->mark_as_specialized();
+  set_data((intptr_t)method_data);
+}
+
+bool ciMethodDataEntry::load_required() const {
+  ciMethodData* md = method_data();
+  return md->constant_encoding() != nullptr && md->is_empty();
 }
 
 void ciSpeculativeTrapData::translate_from(const ProfileData* data) {
@@ -496,6 +502,14 @@ ciProfileData* ciMethodData::bci_to_data(int bci, ciMethod* m) {
     return bci_to_data(bci, nullptr);
   }
   return nullptr;
+}
+
+ciMethodDataEntry* ciMethodData::bci_to_md_entry(int bci) {
+  ciProfileData* data = bci_to_data(bci);
+  if (data == nullptr || (!data->is_CallData() && !data->is_VirtualCallData())) {
+    return nullptr;
+  }
+  return data->is_CallData() ? ((ciCallData*)data)->callee_md() : ((ciVirtualCallData*)data)->callee_md();
 }
 
 ciBitData ciMethodData::exception_handler_bci_to_data(int bci) {
@@ -920,10 +934,18 @@ void ciReturnTypeEntry::print_data_on(outputStream* st) const {
   st->cr();
 }
 
-void ciCallData::translate_call_data_from(const ProfileData* data) {
-  MethodData* md = data->as_CallData()->method_data();
-  ciMethodData* ci_md = CURRENT_ENV->get_method_data(md);
-  set_method_data(ci_md);
+void ciMethodDataEntry::print_data_on(outputStream* st) const {
+  if (method_data() != nullptr) {
+    _pd->tab(st);
+    st->print("specialized for");
+    ((MethodData*)method_data()->constant_encoding())->method()->print_short_name(st);
+    st->cr();
+  }
+}
+
+void ciCallData::print_data_on(outputStream* st, const char* extra) const {
+  print_shared(st, "ciCallData", extra);
+  callee_md()->print_data_on(st);
 }
 
 void ciCallTypeData::print_data_on(outputStream* st, const char* extra) const {
@@ -938,6 +960,7 @@ void ciCallTypeData::print_data_on(outputStream* st, const char* extra) const {
     st->print_cr("return type");
     ret()->print_data_on(st);
   }
+  rtd_super()->callee_md()->print_data_on(st);
 }
 
 void ciReceiverTypeData::print_receiver_data_on(outputStream* st) const {
@@ -964,6 +987,7 @@ void ciReceiverTypeData::print_data_on(outputStream* st, const char* extra) cons
 void ciVirtualCallData::print_data_on(outputStream* st, const char* extra) const {
   print_shared(st, "ciVirtualCallData", extra);
   rtd_super()->print_receiver_data_on(st);
+  callee_md()->print_data_on(st);
 }
 
 void ciVirtualCallTypeData::print_data_on(outputStream* st, const char* extra) const {
@@ -979,6 +1003,7 @@ void ciVirtualCallTypeData::print_data_on(outputStream* st, const char* extra) c
     st->print("return type");
     ret()->print_data_on(st);
   }
+  rtd_super()->callee_md()->print_data_on(st);
 }
 
 void ciParametersTypeData::print_data_on(outputStream* st, const char* extra) const {

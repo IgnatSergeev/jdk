@@ -58,6 +58,7 @@ class   ciMetadata;
 class   ciMethod;
 class   ciMethodData;
 class     ciReceiverTypeData;  // part of ciMethodData
+class     ciMethodDataEntry;  // part of ciMethodData
 class   ciType;
 class    ciReturnAddress;
 class    ciKlass;

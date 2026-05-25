@@ -1112,8 +1112,11 @@ JRT_LEAF(void, InterpreterRuntime::verify_mdp(Method* method, address bcp, addre
   if (mdp != mdp2) {
     ResourceMark rm;
     tty->print_cr("FAILED verify : actual mdp %p   expected mdp %p @ bci %d", mdp, mdp2, bci);
+    tty->print_cr("%d", method->code_at(bci));
     int current_di = mdo->dp_to_di(mdp);
     int expected_di  = mdo->dp_to_di(mdp2);
+    ProfileData* data = ((DataLayout*)mdp2)->data_in();
+    tty->print_cr("%d", ((DataLayout*)mdp2)->tag());
     tty->print_cr("  actual di %d   expected di %d", current_di, expected_di);
     int expected_approx_bci = mdo->data_at(expected_di)->bci();
     int approx_bci = -1;

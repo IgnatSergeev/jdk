@@ -175,24 +175,24 @@ class BytecodePrinter {
     if (mdo != nullptr) {
       ProfileData* data = mdo->first_data();
       while (data != nullptr) {
-        if (data->bci() == bci && data->is_CallData()) {
+        if (data->bci() == bci && (data->is_CallData() || data->is_VirtualCallData())) {
           break;
         }
         data = mdo->next_data(data);
       }
 
       if (data != nullptr) {
-        assert(data->is_CallData(), "sanity");
-        MethodData* specialized = data->as_CallData()->specialized_data();
+        assert(data->is_CallData() || data->is_VirtualCallData(), "sanity");
+        MethodData* spec_mdo = data->is_CallData() ? data->as_CallData()->callee_md()->method_data() : data->as_VirtualCallData()->callee_md()->method_data();
 
-        if (specialized != nullptr) {
+        if (spec_mdo != nullptr) {
           Thread *thread = Thread::current();
           ResourceMark rm(thread);
-          methodHandle mh(thread, specialized->method());
+          methodHandle mh(thread, spec_mdo->method());
           StreamIndentor si(st, 4);
-          st->print_cr("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
-          BytecodeTracer::print_method_codes(mh, specialized, 0, mh->code_size(), st, flags);
-          st->print_cr(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+          st->print_cr("<<<<<<<<");
+          BytecodeTracer::print_method_codes(mh, spec_mdo, 0, mh->code_size(), st, flags);
+          st->print_cr(">>>>>>>>");
         }
       }
     }

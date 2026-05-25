@@ -1703,16 +1703,24 @@ void ciEnv::dump_replay_data_version(outputStream* out) {
   out->print_cr("version %d", REPLAY_VERSION);
 }
 
-Pair<ciMethodData*, bool> ciEnv::ensure_specialized_method_data(ciMethod* callee, ciMethodData* caller_md, int bci) {
+bool ciEnv::ensure_specialized_method_data(ciMethod* callee, ciMethodData* caller_md, int bci) {
   assert(callee != nullptr, "callee should not be null");
 
   if (!SpecializedMethodData) {
-    return { callee->method_data(), callee->ensure_method_data() };
+    return callee->ensure_method_data();
   }
 
-  bool result = callee->ensure_specialized_method_data(caller_md, bci);
+  return callee->ensure_specialized_method_data(caller_md, bci);
+}
 
-  return { callee->specialized_method_data(caller_md, bci), result };
+ciMethodData* ciEnv::specialized_method_data(ciMethod* callee, ciMethodData* caller_md, int bci) {
+  assert(callee != nullptr, "callee should not be null");
+
+  if (!SpecializedMethodData) {
+    return callee->method_data();
+  }
+
+  return callee->specialized_method_data(caller_md, bci);
 }
 
 ciMethodData* ciEnv::specialized_method_data(ciMethod* callee, JVMState* caller) {
@@ -1732,7 +1740,7 @@ ciMethodData* ciEnv::specialized_method_data(ciMethod* callee, JVMState* caller)
   }
 
   for (int spec_depth = call_sites.length(); spec_depth > 0; spec_depth--) {
-    ciMethodData* caller_md = call_sites.at(spec_depth - 1).first->method_data();
+    ciMethodData* caller_md = call_sites.at(spec_depth - 1).first->method_data_or_null();
     int caller_bci = call_sites.at(spec_depth - 1).second;
 
     if (caller_md == nullptr) {
