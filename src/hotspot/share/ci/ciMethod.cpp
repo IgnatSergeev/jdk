@@ -1122,13 +1122,23 @@ ciMethodData* ciMethod::method_data_or_null() {
   return md;
 }
 
+bool ciMethod::specialized_method_data_compatible(ciMethodData* caller_md, int bci) {
+  ciMethodDataEntry* entry = caller_md->bci_to_md_entry(bci);
+  if (entry == nullptr || entry->method_data()->constant_encoding() == nullptr) {
+    return false;
+  }
+
+  MethodData* mdo = (MethodData*)entry->method_data()->constant_encoding();
+  return mdo->method() == get_Method();
+}
+
 // ------------------------------------------------------------------
 // ciMethod::specialized_method_data
 //
 ciMethodData* ciMethod::specialized_method_data(ciMethodData* caller_md, int bci) {
   assert(caller_md != nullptr, "caller method data should not be null");
+  assert(specialized_method_data_compatible(caller_md, bci), "specialized method data entry doesn`t exist or incompatible with current method");
   ciMethodDataEntry* entry = caller_md->bci_to_md_entry(bci);
-  assert(entry != nullptr, "missing specialized method data entry at bci");
   ciMethodData* md = entry->method_data();
 
   if (!entry->load_required()) {
@@ -1148,6 +1158,9 @@ ciMethodData* ciMethod::specialized_method_data(ciMethodData* caller_md, int bci
 // Returns a pointer to ciMethodData if specialized MDO exists on the VM side,
 // null otherwise.
 ciMethodData* ciMethod::specialized_method_data_or_null(ciMethodData* caller_md, int bci) {
+  if (!specialized_method_data_compatible(caller_md, bci)) {
+    return nullptr;
+  }
   ciMethodData *md = specialized_method_data(caller_md, bci);
   if (md->is_empty()) {
     return nullptr;

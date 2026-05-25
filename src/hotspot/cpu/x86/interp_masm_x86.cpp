@@ -1442,7 +1442,7 @@ void InterpreterMacroAssembler::record_klass_in_profile_helper(
     increment_mdp_data_at(mdp, in_bytes(CounterData::count_offset()));
   } else {
     record_item_in_profile_helper(receiver, mdp, reg2, 0, done, TypeProfileWidth,
-                                  &VirtualCallData::receiver_offset, &VirtualCallData::receiver_count_offset);
+                                  &ReceiverTypeData::receiver_offset, &ReceiverTypeData::receiver_count_offset);
   }
 }
 
@@ -1602,7 +1602,7 @@ void InterpreterMacroAssembler::profile_null_seen(Register mdp) {
     // The method data pointer needs to be updated.
     int mdp_delta = in_bytes(BitData::bit_data_size());
     if (TypeProfileCasts) {
-      mdp_delta = in_bytes(VirtualCallData::virtual_call_data_size());
+      mdp_delta = in_bytes(ReceiverTypeData::receiver_type_data_size());
     }
     update_mdp_by_constant(mdp, mdp_delta);
 
@@ -1621,7 +1621,7 @@ void InterpreterMacroAssembler::profile_typecheck(Register mdp, Register klass, 
     // The method data pointer needs to be updated.
     int mdp_delta = in_bytes(BitData::bit_data_size());
     if (TypeProfileCasts) {
-      mdp_delta = in_bytes(VirtualCallData::virtual_call_data_size());
+      mdp_delta = in_bytes(ReceiverTypeData::receiver_type_data_size());
 
       // Record the object type.
       record_klass_in_profile(klass, mdp, reg2, false);

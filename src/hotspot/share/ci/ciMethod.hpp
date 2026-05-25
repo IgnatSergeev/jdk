@@ -145,6 +145,7 @@ class ciMethod : public ciMetadata {
   ciMethodData* method_data_or_null();
 
   // Specialized md access
+  bool specialized_method_data_compatible(ciMethodData* caller_md, int bci);
   ciMethodData* specialized_method_data(ciMethodData* caller_md, int bci);
   ciMethodData* specialized_method_data_or_null(ciMethodData* caller_md, int bci);
 

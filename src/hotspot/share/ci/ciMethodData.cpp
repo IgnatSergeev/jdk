@@ -935,7 +935,7 @@ void ciReturnTypeEntry::print_data_on(outputStream* st) const {
 }
 
 void ciMethodDataEntry::print_data_on(outputStream* st) const {
-  if (method_data() != nullptr) {
+  if (method_data() != nullptr && method_data()->constant_encoding() != nullptr) {
     _pd->tab(st);
     st->print("specialized for");
     ((MethodData*)method_data()->constant_encoding())->method()->print_short_name(st);

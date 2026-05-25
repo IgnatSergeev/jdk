@@ -2142,6 +2142,7 @@ void MethodData::check_extra_data_locked() const {
 #endif
 
 void MethodData::free_specialized_method_datas(ClassLoaderData* loader_data) {
+  ResourceMark rm;
   for (ProfileData* data = first_data();
          is_valid(data);
        data = next_data(data)) {

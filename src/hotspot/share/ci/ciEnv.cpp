@@ -1720,7 +1720,10 @@ ciMethodData* ciEnv::specialized_method_data(ciMethod* callee, ciMethodData* cal
     return callee->method_data();
   }
 
-  return callee->specialized_method_data(caller_md, bci);
+  if (callee->specialized_method_data_compatible(caller_md, bci)) {
+    return callee->specialized_method_data(caller_md, bci);
+  }
+  return callee->method_data();
 }
 
 ciMethodData* ciEnv::specialized_method_data(ciMethod* callee, JVMState* caller) {
