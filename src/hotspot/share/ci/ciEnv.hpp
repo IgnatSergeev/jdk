@@ -52,7 +52,6 @@ class ciEnv : StackObj {
   friend class Dependencies;  // for get_object, during logging
   friend class RecordLocation;
   friend class PrepareExtraDataClosure;
-  friend class GraphBuilder;
 
 private:
   Arena*           _arena;       // Alias for _ciEnv_arena except in init_shared_objects()

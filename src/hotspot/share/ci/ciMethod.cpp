@@ -461,7 +461,7 @@ int ciMethod::check_overflow(int c, Bytecodes::Code code) {
 // ------------------------------------------------------------------
 // ciMethod::call_profile_at_bci
 //
-// Get the ciCallProfile for the invocation of this specialized method.
+// Get the ciCallProfile for the invocation of this method from provided method data.
 // Also reports receiver types for non-call type checks (if TypeProfileCasts).
 ciCallProfile ciMethod::call_profile_at_bci(int bci, ciMethodData* md) {
   ResourceMark rm;
@@ -573,7 +573,7 @@ void ciMethod::assert_call_type_ok(int bci) {
  *
  * @param [in]bci         bci of the call
  * @param [in]i           argument number
- * @param [in]md          specialized method data of this method
+ * @param [in]md          method data of this method
  * @param [out]type       profiled type of argument, null if none
  * @param [out]ptr_kind   whether always null, never null or maybe null
  * @return                true if profiling exists
@@ -612,7 +612,7 @@ bool ciMethod::argument_profiled_type(int bci, int i, ciMethodData* md, ciKlass*
  * the call at bci bci
  *
  * @param [in]bci         bci of the call
- * @param [in]md          specialized method data of this method
+ * @param [in]md          method data of this method
  * @param [out]type       profiled type of argument, null if none
  * @param [out]ptr_kind   whether always null, never null or maybe null
  * @return                true if profiling exists
@@ -648,7 +648,7 @@ bool ciMethod::return_profiled_type(int bci, ciMethodData* md, ciKlass*& type, P
  * Check whether profiling provides a type for the parameter i
  *
  * @param [in]i           parameter number
- * @param [in]md          specialized method data of this method
+ * @param [in]md          method data of this method
  * @param [out]type       profiled type of parameter, null if none
  * @param [out]ptr_kind   whether always null, never null or maybe null
  * @return                true if profiling exists
@@ -1006,7 +1006,7 @@ bool ciMethod::has_member_arg() const {
 // ------------------------------------------------------------------
 // ciMethod::ensure_method_data
 //
-// Generate new MethodData* objects at compile time for default method profiles.
+// Generate new MethodData* objects at compile time for default method profile.
 // Return true if allocation was successful or no MDO is required.
 bool ciMethod::ensure_method_data(const methodHandle& h_m) {
   EXCEPTION_CONTEXT;

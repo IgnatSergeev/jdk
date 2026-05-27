@@ -182,6 +182,8 @@ class ciCallTypeData : public CallTypeData {
 public:
   ciCallTypeData(DataLayout* layout) : CallTypeData(layout) {}
 
+  ciMethodDataEntry* callee_md() const { return rtd_super()->callee_md(); }
+
   ciTypeStackSlotEntries* args() const { return (ciTypeStackSlotEntries*)CallTypeData::args(); }
   ciReturnTypeEntry* ret() const { return (ciReturnTypeEntry*)CallTypeData::ret(); }
 
@@ -302,6 +304,8 @@ public:
     return rtd_super()->receiver(row);
   }
 
+  ciMethodDataEntry* callee_md() const { return rtd_super()->callee_md(); }
+
   ciTypeStackSlotEntries* args() const { return (ciTypeStackSlotEntries*)VirtualCallTypeData::args(); }
   ciReturnTypeEntry* ret() const { return (ciReturnTypeEntry*)VirtualCallTypeData::ret(); }
 
@@ -415,6 +419,7 @@ public:
 class ciMethodData : public ciMetadata {
   CI_PACKAGE_ACCESS
   friend class ciReplay;
+
 private:
   // Size in bytes
   int _data_size;
@@ -453,9 +458,9 @@ private:
 
   // Coherent snapshot of original header.
   MethodData::CompilerCounters _orig;
-protected:
+
   ciMethodData(MethodData* md = nullptr);
-private:
+
   // Accessors
   int data_size() const { return _data_size; }
   int extra_data_size() const { return _extra_data_size; }
