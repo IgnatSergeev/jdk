@@ -22,6 +22,7 @@
  *
  */
 
+#include "oops/methodData.hpp"
 #include "cds/cdsConfig.hpp"
 #include "ci/ciMethodData.hpp"
 #include "classfile/systemDictionaryShared.hpp"
@@ -416,22 +417,43 @@ void ReturnTypeEntry::print_data_on(outputStream* st) const {
   st->cr();
 }
 
-void CallTypeData::print_data_on(outputStream* st, const char* extra) const {
-  CounterData::print_data_on(st, extra);
-  if (has_arguments()) {
-    tab(st, true);
-    st->print("argument types");
-    _args.print_data_on(st);
-  }
-  if (has_return()) {
-    tab(st, true);
-    st->print("return type");
-    _ret.print_data_on(st);
+void MethodDataEntry::clean_weak_klass_links(bool always_clean) {
+  if (method_data() != nullptr) {
+    method_data()->clean_method_data(always_clean);
   }
 }
 
-void VirtualCallTypeData::print_data_on(outputStream* st, const char* extra) const {
-  VirtualCallData::print_data_on(st, extra);
+void MethodDataEntry::metaspace_pointers_do(MetaspaceClosure* it) {
+  MethodData** m = (MethodData**)intptr_at_adr(method_data_entry);
+  it->push(m);
+}
+
+void MethodDataEntry::print_data_on(outputStream* st) const {
+  if (method_data() != nullptr) {
+    _pd->tab(st);
+    st->print("specialized for");
+    method_data()->method()->print_short_name(st);
+    st->cr();
+
+    Thread *thread = Thread::current();
+    ResourceMark rm(thread);
+    methodHandle mh(thread, method_data()->method());
+    StreamIndentor si(st, 4);
+    st->print_cr("<<<<<<<<");
+    method_data()->print_data_on(st);
+    st->print_cr(">>>>>>>>");
+  }
+}
+
+void CallData::print_data_on(outputStream* st, const char* extra) const {
+  print_shared(st, "CallData", extra);
+  st->print_cr("count(%u)", count());
+  print_md_entry_on(st);
+}
+
+void CallTypeData::print_data_on(outputStream* st, const char* extra) const {
+  print_shared(st, "CallTypeData", extra);
+  st->print_cr("count(%u)", count());
   if (has_arguments()) {
     tab(st, true);
     st->print("argument types");
@@ -442,6 +464,23 @@ void VirtualCallTypeData::print_data_on(outputStream* st, const char* extra) con
     st->print("return type");
     _ret.print_data_on(st);
   }
+  print_md_entry_on(st);
+}
+
+void VirtualCallTypeData::print_data_on(outputStream* st, const char* extra) const {
+  print_shared(st, "VirtualCallTypeData", extra);
+  print_receiver_data_on(st);
+  if (has_arguments()) {
+    tab(st, true);
+    st->print("argument types");
+    _args.print_data_on(st);
+  }
+  if (has_return()) {
+    tab(st, true);
+    st->print("return type");
+    _ret.print_data_on(st);
+  }
+  print_md_entry_on(st);
 }
 
 // ==================================================================
@@ -453,7 +492,7 @@ void VirtualCallTypeData::print_data_on(outputStream* st, const char* extra) con
 // which are used to store a type profile for the receiver of the check.
 
 void ReceiverTypeData::clean_weak_klass_links(bool always_clean) {
-    for (uint row = 0; row < row_limit(); row++) {
+  for (uint row = 0; row < row_limit(); row++) {
     Klass* p = receiver(row);
     if (p != nullptr) {
       if (!always_clean && p->is_instance_klass() && InstanceKlass::cast(p)->is_not_initialized()) {
@@ -499,9 +538,20 @@ void ReceiverTypeData::print_data_on(outputStream* st, const char* extra) const 
   print_receiver_data_on(st);
 }
 
+void VirtualCallData::clean_weak_klass_links(bool always_clean) {
+  ReceiverTypeData::clean_weak_klass_links(always_clean);
+  _callee_md.clean_weak_klass_links(always_clean);
+}
+
+void VirtualCallData::metaspace_pointers_do(MetaspaceClosure *it) {
+  ReceiverTypeData::metaspace_pointers_do(it);
+  _callee_md.metaspace_pointers_do(it);
+}
+
 void VirtualCallData::print_data_on(outputStream* st, const char* extra) const {
   print_shared(st, "VirtualCallData", extra);
   print_receiver_data_on(st);
+  print_md_entry_on(st);
 }
 
 // ==================================================================
@@ -742,7 +792,7 @@ int MethodData::bytecode_cell_count(Bytecodes::Code code) {
     if (MethodData::profile_arguments() || MethodData::profile_return()) {
       return variable_cell_count;
     } else {
-      return CounterData::static_cell_count();
+      return CallData::static_cell_count();
     }
   case Bytecodes::_goto:
   case Bytecodes::_goto_w:
@@ -760,7 +810,7 @@ int MethodData::bytecode_cell_count(Bytecodes::Code code) {
     if (MethodData::profile_arguments() || MethodData::profile_return()) {
       return variable_cell_count;
     } else {
-      return CounterData::static_cell_count();
+      return CallData::static_cell_count();
     }
   case Bytecodes::_ret:
     return RetData::static_cell_count();
@@ -810,7 +860,7 @@ int MethodData::compute_data_size(BytecodeStream* stream) {
           profile_return_for_invoke(stream->method(), stream->bci())) {
         cell_count = CallTypeData::compute_cell_count(stream);
       } else {
-        cell_count = CounterData::static_cell_count();
+        cell_count = CallData::static_cell_count();
       }
       break;
     case Bytecodes::_invokevirtual:
@@ -1066,17 +1116,17 @@ int MethodData::initialize_data(BytecodeStream* stream,
     break;
   case Bytecodes::_invokespecial:
   case Bytecodes::_invokestatic: {
-    int counter_data_cell_count = CounterData::static_cell_count();
+    int call_data_cell_count = CallData::static_cell_count();
     if (profile_arguments_for_invoke(stream->method(), stream->bci()) ||
         profile_return_for_invoke(stream->method(), stream->bci())) {
       cell_count = CallTypeData::compute_cell_count(stream);
     } else {
-      cell_count = counter_data_cell_count;
+      cell_count = call_data_cell_count;
     }
-    if (cell_count > counter_data_cell_count) {
+    if (cell_count > call_data_cell_count) {
       tag = DataLayout::call_type_data_tag;
     } else {
-      tag = DataLayout::counter_data_tag;
+      tag = DataLayout::call_data_tag;
     }
     break;
   }
@@ -1105,17 +1155,17 @@ int MethodData::initialize_data(BytecodeStream* stream,
   }
   case Bytecodes::_invokedynamic: {
     // %%% should make a type profile for any invokedynamic that takes a ref argument
-    int counter_data_cell_count = CounterData::static_cell_count();
+    int call_data_cell_count = CallData::static_cell_count();
     if (profile_arguments_for_invoke(stream->method(), stream->bci()) ||
         profile_return_for_invoke(stream->method(), stream->bci())) {
       cell_count = CallTypeData::compute_cell_count(stream);
     } else {
-      cell_count = counter_data_cell_count;
+      cell_count = call_data_cell_count;
     }
-    if (cell_count > counter_data_cell_count) {
+    if (cell_count > call_data_cell_count) {
       tag = DataLayout::call_type_data_tag;
     } else {
-      tag = DataLayout::counter_data_tag;
+      tag = DataLayout::call_data_tag;
     }
     break;
   }
@@ -1153,7 +1203,7 @@ int MethodData::initialize_data(BytecodeStream* stream,
   assert(tag == DataLayout::multi_branch_data_tag ||
          ((MethodData::profile_arguments() || MethodData::profile_return()) &&
           (tag == DataLayout::call_type_data_tag ||
-           tag == DataLayout::counter_data_tag ||
+           tag == DataLayout::call_data_tag ||
            tag == DataLayout::virtual_call_type_data_tag ||
            tag == DataLayout::virtual_call_data_tag)) ||
          cell_count == bytecode_cell_count(c), "cell counts must agree");
@@ -1209,6 +1259,8 @@ int DataLayout::cell_count() {
     return ((new ParametersTypeData(this))->cell_count());
   case DataLayout::speculative_trap_data_tag:
     return SpeculativeTrapData::static_cell_count();
+  case DataLayout::call_data_tag:
+    return CallData::static_cell_count();
   }
 }
 ProfileData* DataLayout::data_in() {
@@ -1243,6 +1295,8 @@ ProfileData* DataLayout::data_in() {
     return new ParametersTypeData(this);
   case DataLayout::speculative_trap_data_tag:
     return new SpeculativeTrapData(this);
+  case DataLayout::call_data_tag:
+    return new CallData(this);
   }
 }
 
@@ -1428,6 +1482,25 @@ void MethodData::init() {
 
   // Initialize escape flags.
   clear_escape_info();
+}
+
+int MethodData::specialized_size_in_bytes() const {
+  int size = 0;
+  for (ProfileData* data = first_data();
+         is_valid(data);
+         data = next_data(data)) {
+    MethodData* md = nullptr;
+    if (data->is_CallData()) {
+      md = data->as_CallData()->callee_md()->method_data();
+    } else if (data->is_VirtualCallData()) {
+      md = data->as_VirtualCallData()->callee_md()->method_data();
+    }
+
+    if (md != nullptr) {
+      size += md->size_in_bytes() + md->specialized_size_in_bytes();
+    }
+  }
+  return size;
 }
 
 bool MethodData::is_mature() const {
@@ -1950,17 +2023,31 @@ void MethodData::verify_extra_data_clean(CleanExtraDataClosure* cl) {
 
 void MethodData::clean_method_data(bool always_clean) {
   ResourceMark rm;
+  CleanExtraDataKlassClosure cl(always_clean);
+
   for (ProfileData* data = first_data();
        is_valid(data);
        data = next_data(data)) {
     data->clean_weak_klass_links(always_clean);
+
+    if (data->is_CallData()) {
+      CallData* call = data->as_CallData();
+      MethodData* md = call->callee_md()->method_data();
+      if (md != nullptr && !cl.is_live(md->method())) {
+        call->clear_method_data();
+      }
+    } else if (data->is_VirtualCallData()) {
+      VirtualCallData* call = data->as_VirtualCallData();
+      MethodData* md = call->callee_md()->method_data();
+      if (md != nullptr && !cl.is_live(md->method())) {
+        call->clear_method_data();
+      }
+    }
   }
   ParametersTypeData* parameters = parameters_type_data();
   if (parameters != nullptr) {
     parameters->clean_weak_klass_links(always_clean);
   }
-
-  CleanExtraDataKlassClosure cl(always_clean);
 
   // Lock to modify extra data, and prevent Safepoint from breaking the lock
   MutexLocker ml(extra_data_lock(), Mutex::_no_safepoint_check_flag);
@@ -1975,6 +2062,31 @@ void MethodData::clean_weak_method_links() {
   ResourceMark rm;
   CleanExtraDataMethodClosure cl;
 
+  for (ProfileData* data = first_data();
+         is_valid(data);
+         data = next_data(data)) {
+
+    if (data->is_CallData()) {
+      CallData* call = data->as_CallData();
+      MethodData* md = call->callee_md()->method_data();
+      if (md != nullptr) {
+        md->clean_weak_method_links();
+        if (!cl.is_live(md->method())) {
+          call->clear_method_data();
+        }
+      }
+    } else if (data->is_VirtualCallData()) {
+      VirtualCallData* call = data->as_VirtualCallData();
+      MethodData* md = call->callee_md()->method_data();
+      if (md != nullptr) {
+        md->clean_weak_method_links();
+        if (!cl.is_live(md->method())) {
+          call->clear_method_data();
+        }
+      }
+    }
+  }
+
   // Lock to modify extra data, and prevent Safepoint from breaking the lock
   MutexLocker ml(extra_data_lock(), Mutex::_no_safepoint_check_flag);
 
@@ -1983,6 +2095,7 @@ void MethodData::clean_weak_method_links() {
 }
 
 void MethodData::deallocate_contents(ClassLoaderData* loader_data) {
+  free_specialized_method_datas(loader_data);
   release_C_heap_structures();
 }
 
@@ -2017,3 +2130,27 @@ void MethodData::check_extra_data_locked() const {
            "JavaThread must have NoSafepointVerifier inside lock scope");
 }
 #endif
+
+void MethodData::free_specialized_method_datas(ClassLoaderData* loader_data) {
+  ResourceMark rm;
+  for (ProfileData* data = first_data();
+         is_valid(data);
+       data = next_data(data)) {
+    MethodData* md;
+    if (data->is_CallData()) {
+      CallData* call = data->as_CallData();
+      md = call->callee_md()->method_data();
+      call->clear_method_data();
+    } else if (data->is_VirtualCallData()) {
+      VirtualCallData* call = data->as_VirtualCallData();
+      md = call->callee_md()->method_data();
+      call->clear_method_data();
+    } else {
+      continue;
+    }
+
+    if (md != nullptr) {
+      MetadataFactory::free_metadata(loader_data, md);
+    }
+  }
+}

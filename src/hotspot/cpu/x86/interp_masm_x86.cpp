@@ -117,7 +117,7 @@ void InterpreterMacroAssembler::profile_arguments_type(Register mdp, Register ca
 
     test_method_data_pointer(mdp, profile_continue);
 
-    int off_to_start = is_virtual ? in_bytes(VirtualCallData::virtual_call_data_size()) : in_bytes(CounterData::counter_data_size());
+    int off_to_start = is_virtual ? in_bytes(VirtualCallData::virtual_call_data_size()) : in_bytes(CallData::call_data_size());
 
     cmpb(Address(mdp, in_bytes(DataLayout::tag_offset()) - off_to_start), is_virtual ? DataLayout::virtual_call_type_data_tag : DataLayout::call_type_data_tag);
     jcc(Assembler::notEqual, profile_continue);
@@ -1367,7 +1367,7 @@ void InterpreterMacroAssembler::profile_call(Register mdp) {
     increment_mdp_data_at(mdp, in_bytes(CounterData::count_offset()));
 
     // The method data pointer needs to be updated to reflect the new target.
-    update_mdp_by_constant(mdp, in_bytes(CounterData::counter_data_size()));
+    update_mdp_by_constant(mdp, in_bytes(CallData::call_data_size()));
     bind(profile_continue);
   }
 }
@@ -1442,7 +1442,7 @@ void InterpreterMacroAssembler::record_klass_in_profile_helper(
     increment_mdp_data_at(mdp, in_bytes(CounterData::count_offset()));
   } else {
     record_item_in_profile_helper(receiver, mdp, reg2, 0, done, TypeProfileWidth,
-                                  &VirtualCallData::receiver_offset, &VirtualCallData::receiver_count_offset);
+                                  &ReceiverTypeData::receiver_offset, &ReceiverTypeData::receiver_count_offset);
   }
 }
 
@@ -1602,7 +1602,7 @@ void InterpreterMacroAssembler::profile_null_seen(Register mdp) {
     // The method data pointer needs to be updated.
     int mdp_delta = in_bytes(BitData::bit_data_size());
     if (TypeProfileCasts) {
-      mdp_delta = in_bytes(VirtualCallData::virtual_call_data_size());
+      mdp_delta = in_bytes(ReceiverTypeData::receiver_type_data_size());
     }
     update_mdp_by_constant(mdp, mdp_delta);
 
@@ -1621,7 +1621,7 @@ void InterpreterMacroAssembler::profile_typecheck(Register mdp, Register klass, 
     // The method data pointer needs to be updated.
     int mdp_delta = in_bytes(BitData::bit_data_size());
     if (TypeProfileCasts) {
-      mdp_delta = in_bytes(VirtualCallData::virtual_call_data_size());
+      mdp_delta = in_bytes(ReceiverTypeData::receiver_type_data_size());
 
       // Record the object type.
       record_klass_in_profile(klass, mdp, reg2, false);
