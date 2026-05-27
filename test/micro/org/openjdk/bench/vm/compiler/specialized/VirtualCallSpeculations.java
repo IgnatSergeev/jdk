@@ -20,6 +20,7 @@
  * or visit www.oracle.com if you need any additional information or
  * have any questions.
  */
+
 package org.openjdk.bench.vm.compiler;
 
 import org.openjdk.jmh.annotations.Benchmark;
@@ -36,30 +37,13 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Benchmarks for specialized method data (profiles) in virtual call / type
- * profile scenarios.
- *
- * <p>The inlinee is a thin method that makes a single virtual call.
- * The hot loop is in the benchmark method, not the inlinee, to prevent
- * OSR compilation of the inlinee as a standalone method. This ensures C1
- * inlines the inlinee and creates specialized MDOs for each call site.
- *
- * <p>Receivers are stored in an array of the abstract type, which prevents
- * C2 from using call-site type speculation based on declared field types.
- * Classes are non-final to prevent CHA-based devirtualization.
- *
- * <p>Without specialized profiles, the shared MDO accumulates all receiver
- * types across call sites, becoming megamorphic (3+ types). C2 cannot inline
- * the virtual call and must use vtable dispatch on every loop iteration.
- *
- * <p>With specialized profiles, each call site gets its own MDO showing a
- * monomorphic type profile. C2 inlines the virtual call per site, eliminating
- * dispatch overhead and enabling further optimization of the inlined body.
+ * Benchmarks for individual inline call site profiles with virtual call
+ * receiver type speculations scenarios.
  *
  * <p>To compare performance with and without specialized profiles, run with:
  * <pre>
- *   -XX:+UnlockDiagnosticVMOptions -XX:+SpecializedMethodData   (with)
- *   -XX:+UnlockDiagnosticVMOptions -XX:-SpecializedMethodData   (without)
+ *   -XX:+UnlockExperimentalVMOptions -XX:+SpecializedMethodData
+ *   -XX:+UnlockExperimentalVMOptions -XX:-SpecializedMethodData
  * </pre>
  */
 @BenchmarkMode(Mode.AverageTime)
@@ -68,7 +52,7 @@ import java.util.concurrent.TimeUnit;
 @Warmup(iterations = 4, time = 2, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 4, time = 2, timeUnit = TimeUnit.SECONDS)
 @Fork(value = 3)
-public class SpecializedProfilesVirtualCall {
+public class VirtualCallSpeculations {
 
     static final int SIZE = 1024;
 

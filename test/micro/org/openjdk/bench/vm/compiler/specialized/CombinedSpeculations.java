@@ -20,6 +20,7 @@
  * or visit www.oracle.com if you need any additional information or
  * have any questions.
  */
+
 package org.openjdk.bench.vm.compiler;
 
 import org.openjdk.jmh.annotations.Benchmark;
@@ -36,33 +37,13 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Benchmarks for specialized method data (profiles) in branch profile
- * scenarios.
- *
- * <p>The inlinee is a thin method with a branch on the input value.
- * The hot loop is in the benchmark method, not the inlinee, to prevent
- * OSR compilation of the inlinee as a standalone method. This ensures C1
- * inlines the inlinee and creates specialized MDOs for each call site.
- *
- * <p>Each arm performs different computation:
- * <ul>
- *   <li>if-arm: simple return value</li>
- *   <li>else-arm: more expensive computation (multiply + add)</li>
- * </ul>
- *
- * <p>When the branch always takes one arm at a given call site, specialized
- * profiles enable C2's {@code unstable_if} to replace the dead arm with an
- * uncommon trap. The surviving arm's code becomes the only path, enabling
- * simpler generated code and better optimization.
- *
- * <p>Without specialized profiles, the shared MDO records both arms as
- * reachable when the inlinee is called from multiple sites with different
- * data. C2 must keep both arms.
+ * Benchmarks for individual inline call site profiles with both branch and type
+ * speculation scenarios.
  *
  * <p>To compare performance with and without specialized profiles, run with:
  * <pre>
- *   -XX:+UnlockDiagnosticVMOptions -XX:+SpecializedMethodData   (with)
- *   -XX:+UnlockDiagnosticVMOptions -XX:-SpecializedMethodData   (without)
+ *   -XX:+UnlockExperimentalVMOptions -XX:+SpecializedMethodData
+ *   -XX:+UnlockExperimentalVMOptions -XX:-SpecializedMethodData
  * </pre>
  */
 @BenchmarkMode(Mode.AverageTime)
@@ -71,67 +52,89 @@ import java.util.concurrent.TimeUnit;
 @Warmup(iterations = 4, time = 2, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 4, time = 2, timeUnit = TimeUnit.SECONDS)
 @Fork(value = 3)
-public class SpecializedProfilesBranch {
+public class CombinedSpeculations {
 
     static final int SIZE = 1024;
 
-    static int branchInlinee(int v) {
+    interface Data {
+        int compute(int v);
+    }
+
+    static class AddData implements Data {
+        public int compute(int v) { return v + 1; }
+    }
+
+    static class MulData implements Data {
+        public int compute(int v) { return v * 31; }
+    }
+
+    static class XorData implements Data {
+        public int compute(int v) { return v ^ 0x5555AAAA; }
+    }
+
+    static int combinedInlinee(Data d, int v) {
+        int result = d.compute(v);
         if (v > 0) {
-            return v;
+            return result;
         } else {
-            return v * 31 + 7;
+            return result * 31 + 7;
         }
     }
 
-    static int branchInlineeTwoBranches(int v) {
-        if (v > 0) {
-            return v;
-        } else if (v < -50) {
-            return v * 17 - 3;
-        } else {
-            return v * 31 + 7;
-        }
-    }
-
+    Data[] receivers;
     int[] posData;
     int[] negData;
+    int[] data;
 
     @Setup
     public void setup() {
+        receivers = new Data[]{new AddData(), new MulData(), new XorData()};
         posData = new int[SIZE];
         negData = new int[SIZE];
+        data = new int[SIZE];
         for (int i = 0; i < SIZE; i++) {
             posData[i] = i + 1;
             negData[i] = -(i + 1);
+            data[i] = i + 1;
         }
     }
 
     @Benchmark
-    public int singleSiteSingleBranch() {
+    public int singleSiteSingleTypeSingleBranch() {
         int sum = 0;
-        for (int i = 0; i < negData.length; i++) {
-            sum += branchInlinee(negData[i]);
+        for (int i = 0; i < posData.length; i++) {
+            sum += combinedInlinee(receivers[0], posData[i]);
         }
         return sum;
     }
 
     @Benchmark
-    public int twoSitesTwoBranches() {
+    public int twoSitesTwoTypesSingleBranch() {
         int sum = 0;
-        for (int i = 0; i < posData.length; i++) {
-            sum += branchInlinee(posData[i]);
-            sum += branchInlinee(negData[i]);
+        for (int i = 0; i < data.length; i++) {
+            sum += combinedInlinee(receivers[0], data[i]);
+            sum += combinedInlinee(receivers[1], data[i]);
         }
         return sum;
     }
 
     @Benchmark
-    public int threeSitesTwoBranches() {
+    public int twoSitesTwoTypesTwoBranches() {
         int sum = 0;
         for (int i = 0; i < posData.length; i++) {
-            sum += branchInlinee(posData[i]);
-            sum += branchInlinee(posData[i]);
-            sum += branchInlinee(negData[i]);
+            sum += combinedInlinee(receivers[0], posData[i]);
+            sum += combinedInlinee(receivers[1], negData[i]);
+        }
+        return sum;
+    }
+
+    @Benchmark
+    public int threeSitesThreeTypesTwoBranches() {
+        int sum = 0;
+        for (int i = 0; i < posData.length; i++) {
+            sum += combinedInlinee(receivers[0], posData[i]);
+            sum += combinedInlinee(receivers[1], negData[i]);
+            sum += combinedInlinee(receivers[2], posData[i]);
         }
         return sum;
     }
