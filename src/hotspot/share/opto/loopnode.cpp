@@ -1137,7 +1137,7 @@ bool PhaseIdealLoop::create_loop_nest(IdealLoopTree* loop, Node_List &old_new) {
       // We only want to use the auto-vectorization check as a trap once per bci. And
       // PhaseIdealLoop::add_parse_predicate only checks trap limits per method, so
       // we do a custom check here.
-      if (!C->too_many_traps(cloned_sfpt->jvms()->method(), cloned_sfpt->jvms()->bci(), Deoptimization::Reason_auto_vectorization_check)) {
+      if (!C->too_many_traps(cloned_sfpt->jvms()->method_data(), cloned_sfpt->jvms()->bci(), Deoptimization::Reason_auto_vectorization_check)) {
         add_parse_predicate(Deoptimization::Reason_auto_vectorization_check, inner_head, outer_ilt, cloned_sfpt);
       }
     }
@@ -3925,7 +3925,7 @@ static float estimate_path_freq( Node *n ) {
       Node *call = n->in(0)->in(0)->in(0);
       assert( call->is_Call(), "expect a call here" );
       const JVMState *jvms = ((CallNode*)call)->jvms();
-      ciMethodData* methodData = jvms->method()->method_data();
+      ciMethodData* methodData = jvms->method_data();
       if (!methodData->is_mature())  return 0.0f; // No call-site data
       ciProfileData* data = methodData->bci_to_data(jvms->bci());
       if ((data == nullptr) || !data->is_CounterData()) {
