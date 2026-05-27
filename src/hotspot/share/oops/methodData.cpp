@@ -434,6 +434,14 @@ void MethodDataEntry::print_data_on(outputStream* st) const {
     st->print("specialized for");
     method_data()->method()->print_short_name(st);
     st->cr();
+
+    Thread *thread = Thread::current();
+    ResourceMark rm(thread);
+    methodHandle mh(thread, method_data()->method());
+    StreamIndentor si(st, 4);
+    st->print_cr("<<<<<<<<");
+    method_data()->print_data_on(st);
+    st->print_cr(">>>>>>>>");
   }
 }
 
