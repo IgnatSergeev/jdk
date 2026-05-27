@@ -656,7 +656,6 @@ void Parse::do_call() {
   // Decide call tactic.
   // This call checks with CHA, the interpreter profile, intrinsics table, etc.
   // It decides whether inlining is desirable or not.
-
   CallGenerator* cg = C->call_generator(callee, vtable_index, call_does_dispatch, jvms, try_inline, prof_factor(), speculative_receiver_type);
 
   // NOTE:  Don't use orig_callee and callee after this point!  Use cg->method() instead.

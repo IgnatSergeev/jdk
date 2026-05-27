@@ -1267,7 +1267,6 @@ ProfileData* DataLayout::data_in() {
   switch (tag()) {
   case DataLayout::no_tag:
   default:
-    tty->print("Tag: %i", tag());
     ShouldNotReachHere();
     return nullptr;
   case DataLayout::bit_data_tag:
@@ -1705,23 +1704,6 @@ void MethodData::print_data_on(outputStream* st) const {
     st->print("%d", dp_to_di(data->dp()));
     st->fill_to(6);
     data->print_data_on(st, this);
-
-    const MethodDataEntry* spec = nullptr;
-    if (data->is_CallData()) {
-      spec = data->as_CallData()->callee_md();
-    } else if (data->is_VirtualCallData()) {
-      spec = data->as_VirtualCallData()->callee_md();
-    } else {
-      continue;
-    }
-
-    MethodData* spec_md = spec->method_data();
-
-    if (spec_md != nullptr) {
-      st->print_cr("<<<<<<<<");
-      spec_md->print_data_on(st);
-      st->print_cr(">>>>>>>>");
-    }
   }
 
   st->print_cr("--- Extra data:");

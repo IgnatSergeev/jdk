@@ -103,7 +103,7 @@ class ScopeDesc : public ResourceObj {
 
   // JVM state
   Method*       _method;
-  MethodData*       _specialized_method_data; // Specialized method data or null
+  MethodData*   _specialized_method_data;     // Specialized method data or null
   int           _bci;
   bool          _reexecute;
   bool          _rethrow_exception;

@@ -109,8 +109,8 @@ GrowableArray<Method*>* collected_profiled_methods;
 static int compare_methods(Method** a, Method** b) {
   // compiled_invocation_count() returns int64_t, forcing the entire expression
   // to be evaluated as int64_t. Overflow is not an issue.
-  int64_t diff = (((*b)->inline_counter())
-                - ((*a)->inline_counter()));
+  int64_t diff = (((*b)->invocation_count() + (*b)->compiled_invocation_count())
+                - ((*a)->invocation_count() + (*a)->compiled_invocation_count()));
   return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
 }
 
@@ -118,7 +118,7 @@ static void collect_profiled_methods(Method* m) {
   Thread* thread = Thread::current();
   methodHandle mh(thread, m);
   if ((m->method_data() != nullptr) &&
-      (true || CompilerOracle::should_print(mh))) {
+      (PrintMethodData || CompilerOracle::should_print(mh))) {
     collected_profiled_methods->push(m);
   }
 }
@@ -165,28 +165,6 @@ static void print_method_profiling_data() {
     }
   }
 }
-
-/*static void print_method_inline_count(){
-  ResourceMark rm;
-    collected_profiled_methods = new GrowableArray<Method*>(1024);
-    SystemDictionary::methods_do(collect_profiled_methods);
-    collected_profiled_methods->sort(&compare_methods);
-
-    int count = collected_profiled_methods->length();
-    int total_size = 0;
-    if (count > 0) {
-      for (int index = 0; index < count; index++) {
-        Method* m = collected_profiled_methods->at(index);
-        ResourceMark rm2;
-        stringStream ss;
-        ss.print_cr("------------------------------------------------------------------------");
-        int a = m->inline_counter();
-        int b = m->inline_attempts();
-        ss.print_cr("Method: %s, Inline count: %d, Inline attempts: %d", m->name_and_sig_as_C_string(), a, b);
-        tty->print("%s", ss.as_string());
-      }
-}
-}*/
 
 #ifndef PRODUCT
 
@@ -324,7 +302,7 @@ void print_statistics() {
   }
 
   print_method_profiling_data();
-  //print_method_inline_count();
+
   if (TimeOopMap) {
     GenerateOopMap::print_time();
   }
