@@ -3520,21 +3520,12 @@ bool GraphBuilder::try_inline(ciMethod* callee, bool holder_known, bool ignore_r
   // handle intrinsics
   if (callee->intrinsic_id() != vmIntrinsics::_none &&
       callee->check_intrinsic_candidate()) {
-    ciMethodData* md;
-    if (is_profiling() && callee->holder()->is_linked()) {
-      if (method_data() != nullptr) {
-        if (compilation()->env()->ensure_specialized_method_data(callee, method_data(), bci())) {
-          md = compilation()->env()->specialized_method_data(callee, method_data(), bci());
-        }
-      } else {
-        if (callee->ensure_method_data()) {
-          md = callee->method_data();
-        }
-      }
-
-      if (md == nullptr) {
-        INLINE_BAILOUT("mdo allocation failed");
-      }
+    ciMethodData* md = callee->method_data();
+    if (is_profiling() &&
+        callee->holder()->is_linked() &&
+        method_data() != nullptr &&
+        compilation()->env()->ensure_specialized_method_data(callee, method_data(), bci())) {
+      md = compilation()->env()->specialized_method_data(callee, method_data(), bci());
     }
 
     if (try_inline_intrinsics(callee, md, ignore_return)) {
