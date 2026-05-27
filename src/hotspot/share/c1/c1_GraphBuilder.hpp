@@ -103,6 +103,7 @@ class GraphBuilder {
 
     // When inlining do not push the result on the stack
     bool         _ignore_return;
+
    public:
     ScopeData(ScopeData* parent);
 
@@ -191,7 +192,6 @@ class GraphBuilder {
   Instruction*      _last;                       // the last instruction added
   bool              _skip_block;                 // skip processing of the rest of this block
 
-  stringStream* _inline_log = nullptr;         // the inline log stream
   // accessors
   ScopeData*        scope_data() const           { return _scope_data; }
   Compilation*      compilation() const          { return _compilation; }
@@ -383,7 +383,7 @@ class GraphBuilder {
 
   void print_inlining(ciMethod* callee, const char* msg, bool success = true);
 
-  void profile_call(ciMethod* callee, ciMethodData* callee_method_data, Value recv, ciKlass* predicted_holder, Values* obj_args, bool inlined);
+  void profile_call(ciMethod* callee, ciMethodData* callee_md, Value recv, ciKlass* predicted_holder, Values* obj_args, bool inlined);
   void profile_return_type(Value ret, ciMethod* callee, ciMethod* m = nullptr, ciMethodData* md = nullptr, int bci = -1);
   void profile_invocation(ciMethod* inlinee, ValueStack* state);
 
@@ -397,8 +397,8 @@ class GraphBuilder {
   bool profile_arguments()     { return _compilation->profile_arguments();     }
   bool profile_return()        { return _compilation->profile_return();        }
 
-  Values* args_list_for_profiling(ciMethod* target, ciMethodData* target_md, int& start, bool may_have_receiver);
-  Values* collect_args_for_profiling(Values* args, ciMethod* target, ciMethodData* target_md, bool may_have_receiver);
+  Values* args_list_for_profiling(ciMethodData* target_md, int& start, bool may_have_receiver);
+  Values* collect_args_for_profiling(Values* args, ciMethodData* target_md, bool may_have_receiver);
   void check_args_for_profiling(Values* obj_args, int expected);
 
  public:

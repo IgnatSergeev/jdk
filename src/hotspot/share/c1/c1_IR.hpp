@@ -156,6 +156,7 @@ class IRScope: public CompilationResourceObj {
 
   // helper functions
   BlockBegin* build_graph(Compilation* compilation, int osr_bci);
+
  public:
   // creation
   IRScope(Compilation* compilation, IRScope* caller, int caller_bci, ciMethod* method, ciMethodData* method_data, int osr_bci, bool create_graph = false);

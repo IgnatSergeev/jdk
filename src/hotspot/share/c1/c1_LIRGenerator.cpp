@@ -900,7 +900,7 @@ LIR_Opr LIRGenerator::force_to_spill(LIR_Opr value, BasicType t) {
 
 void LIRGenerator::profile_branch(If* if_instr, If::Condition cond) {
   if (if_instr->should_profile()) {
-    ciMethodData* md = if_instr->md();
+    ciMethodData* md = if_instr->state()->scope()->method_data();
     assert(md != nullptr, "Sanity");
     ciProfileData* data = md->bci_to_data(if_instr->profiled_bci());
     assert(data != nullptr, "must have profiling data");
@@ -2349,7 +2349,7 @@ void LIRGenerator::do_Goto(Goto* x) {
 
   // Gotos can be folded Ifs, handle this case.
   if (x->should_profile()) {
-    ciMethodData* md = x->md();
+    ciMethodData* md = x->state()->scope()->method_data();
     assert(md != nullptr, "Sanity");
     ciProfileData* data = md->bci_to_data(x->profiled_bci());
     assert(data != nullptr, "must have profiling data");
@@ -2974,7 +2974,7 @@ void LIRGenerator::profile_arguments(ProfileCall* x) {
 // profile parameters on entry to an inlined method
 void LIRGenerator::profile_parameters_at_call(ProfileCall* x) {
   if (compilation()->profile_parameters() && x->inlined()) {
-    ciMethodData* md = x->callee_md() != nullptr ? x->callee_md() : x->callee()->method_data_or_null();
+    ciMethodData* md = x->callee_md();
     if (md != nullptr) {
       ciParametersTypeData* parameters_type_data = md->parameters_type_data();
       if (parameters_type_data != nullptr) {

@@ -1386,14 +1386,13 @@ BASE(TypeCheck, StateSplit)
   Value       _obj;
 
   ciMethod* _profiled_method;
-  ciMethodData* _md;
   int       _profiled_bci;
 
  public:
   // creation
   TypeCheck(ciKlass* klass, Value obj, ValueType* type, ValueStack* state_before)
   : StateSplit(type, state_before), _klass(klass), _obj(obj),
-    _profiled_method(nullptr), _md(nullptr), _profiled_bci(0) {
+    _profiled_method(nullptr), _profiled_bci(0) {
     ASSERT_VALUES
     set_direct_compare(false);
   }
@@ -1414,11 +1413,9 @@ BASE(TypeCheck, StateSplit)
   // Helpers for MethodData* profiling
   void set_should_profile(bool value)                { set_flag(ProfileMDOFlag, value); }
   void set_profiled_method(ciMethod* method)         { _profiled_method = method;   }
-  void set_md(ciMethodData* md)         { _md = md;   }
   void set_profiled_bci(int bci)                     { _profiled_bci = bci;         }
   bool      should_profile() const                   { return check_flag(ProfileMDOFlag); }
   ciMethod* profiled_method() const                  { return _profiled_method;     }
-  ciMethodData* md()         { return _md;   }
   int       profiled_bci() const                     { return _profiled_bci;        }
 };
 
@@ -1836,7 +1833,6 @@ LEAF(Goto, BlockEnd)
   };
  private:
   ciMethod*   _profiled_method;
-  ciMethodData*   _md;
   int         _profiled_bci;
   Direction   _direction;
  public:
@@ -1844,7 +1840,6 @@ LEAF(Goto, BlockEnd)
   Goto(BlockBegin* sux, ValueStack* state_before, bool is_safepoint = false)
     : BlockEnd(illegalType, state_before, is_safepoint)
     , _profiled_method(nullptr)
-    , _md(nullptr)
     , _profiled_bci(0)
     , _direction(none) {
     BlockList* s = new BlockList(1);
@@ -1854,7 +1849,6 @@ LEAF(Goto, BlockEnd)
 
   Goto(BlockBegin* sux, bool is_safepoint) : BlockEnd(illegalType, nullptr, is_safepoint)
                                            , _profiled_method(nullptr)
-    , _md(nullptr)
                                            , _profiled_bci(0)
                                            , _direction(none) {
     BlockList* s = new BlockList(1);
@@ -1864,13 +1858,11 @@ LEAF(Goto, BlockEnd)
 
   bool should_profile() const                    { return check_flag(ProfileMDOFlag); }
   ciMethod* profiled_method() const              { return _profiled_method; } // set only for profiled branches
-  ciMethodData* md() const              { return _md; } // set only for profiled branches
   int profiled_bci() const                       { return _profiled_bci; }
   Direction direction() const                    { return _direction; }
 
   void set_should_profile(bool value)            { set_flag(ProfileMDOFlag, value); }
   void set_profiled_method(ciMethod* method)     { _profiled_method = method; }
-  void set_md(ciMethodData* md)     { _md = md; }
   void set_profiled_bci(int bci)                 { _profiled_bci = bci; }
   void set_direction(Direction d)                { _direction = d; }
 };
@@ -1950,7 +1942,6 @@ LEAF(If, BlockEnd)
   Condition   _cond;
   Value       _y;
   ciMethod*   _profiled_method;
-  ciMethodData*   _md;
   int         _profiled_bci; // Canonicalizer may alter bci of If node
   bool        _swapped;      // Is the order reversed with respect to the original If in the
                              // bytecode stream?
@@ -1963,7 +1954,6 @@ LEAF(If, BlockEnd)
   , _cond(cond)
   , _y(y)
   , _profiled_method(nullptr)
-  , _md(nullptr)
   , _profiled_bci(0)
   , _swapped(false)
   {
@@ -1987,7 +1977,6 @@ LEAF(If, BlockEnd)
   BlockBegin* usux() const                       { return sux_for(unordered_is_true()); }
   bool should_profile() const                    { return check_flag(ProfileMDOFlag); }
   ciMethod* profiled_method() const              { return _profiled_method; } // set only for profiled branches
-  ciMethodData* md() const              { return _md; } // set only for profiled branches
   int profiled_bci() const                       { return _profiled_bci; }    // set for profiled branches and tiered
   bool is_swapped() const                        { return _swapped; }
 
@@ -1999,7 +1988,6 @@ LEAF(If, BlockEnd)
 
   void set_should_profile(bool value)             { set_flag(ProfileMDOFlag, value); }
   void set_profiled_method(ciMethod* method)      { _profiled_method = method; }
-  void set_md(ciMethodData* md)      { _md = md; }
   void set_profiled_bci(int bci)                  { _profiled_bci = bci;       }
   void set_swapped(bool value)                    { _swapped = value;         }
   // generic
@@ -2034,40 +2022,34 @@ BASE(Switch, BlockEnd)
 LEAF(TableSwitch, Switch)
  private:
   int _lo_key;
-  ciMethodData* _md;
 
  public:
   // creation
   TableSwitch(Value tag, BlockList* sux, int lo_key, ValueStack* state_before, bool is_safepoint)
     : Switch(tag, sux, state_before, is_safepoint)
-  , _lo_key(lo_key), _md(nullptr) { assert(_lo_key <= hi_key(), "integer overflow"); }
+  , _lo_key(lo_key) { assert(_lo_key <= hi_key(), "integer overflow"); }
 
   // accessors
   int lo_key() const                             { return _lo_key; }
-  void set_md(ciMethodData* md)                              { _md = md; }
   int hi_key() const                             { return _lo_key + (length() - 1); }
-  ciMethodData* md() const                             { return _md; }
 };
 
 
 LEAF(LookupSwitch, Switch)
  private:
   intArray* _keys;
-  ciMethodData* _md;
 
  public:
   // creation
   LookupSwitch(Value tag, BlockList* sux, intArray* keys, ValueStack* state_before, bool is_safepoint)
   : Switch(tag, sux, state_before, is_safepoint)
-  , _keys(keys), _md(nullptr) {
+  , _keys(keys) {
     assert(keys != nullptr, "keys must exist");
     assert(keys->length() == length(), "sux & keys have incompatible lengths");
   }
 
   // accessors
   int key_at(int i) const                        { return _keys->at(i); }
-  void set_md(ciMethodData* md)                              { _md = md; }
-  ciMethodData* md() const                             { return _md; }
 };
 
 
