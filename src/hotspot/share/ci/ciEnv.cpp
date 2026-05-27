@@ -1763,7 +1763,7 @@ ciMethodData* ciEnv::specialized_method_data(ciMethod* callee, JVMState* caller)
     }
 
     ciMethodData* md = callee->specialized_method_data_or_null(caller_md, caller_bci);
-    if (md != nullptr) {
+    if (md != nullptr && md->is_mature()) {
       return md;
     }
   }
